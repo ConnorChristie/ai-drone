@@ -58,7 +58,6 @@ if (WIN32)
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4251 /wd4275 /wd4267") #disable some warnings
     endif()
 else()
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror") #treating warnings as errors
     if (APPLE)
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-command-line-argument")
     elseif(UNIX)
@@ -70,7 +69,7 @@ else()
 endif()
 
 ####################################
-## to use C++11
+## to use C++20 for Windows otherwise use C++11
 set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)

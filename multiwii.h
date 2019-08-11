@@ -1,13 +1,14 @@
 #pragma once
 
 #include <errno.h>
-#include <string>
+#include <cstring>
 #include <limits>
 
 #include <ceSerial.h>
 #include <samples/slog.hpp>
 
 using namespace ce;
+using namespace std;
 
 namespace Msp
 {
@@ -126,6 +127,29 @@ enum MspFlightModeFlags : uint32_t
     FAILSAFE_MODE   = (1 << 10),
     GPS_RESCUE_MODE = (1 << 11)
 };
+
+struct MspRequest
+{
+    char preamble[2];
+    char direction;
+
+    uint8_t size;
+    MspCommand command;
+};
+
+char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, uint8_t param_size);
+
+template<typename T>
+void send_command(ceSerial* serial, MspCommand command, T* params)
+{
+    send_raw_command(serial, command, (char*)params, (uint8_t)sizeof(T));
+}
+
+template<typename T>
+T* receive_parameters(ceSerial* serial, MspCommand command)
+{
+    return (T*)send_raw_command(serial, command, NULL, (uint8_t)sizeof(T));
+}
 
 #pragma pack(push, 1)
 struct MspApiVersion

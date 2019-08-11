@@ -1,6 +1,4 @@
-#pragma once
-
-#include <samples/ocv_common.hpp>
+#include "utils.h"
 
 #if defined(_WIN32)
 bool launchDebugger()
