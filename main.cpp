@@ -11,6 +11,14 @@
 #include <string>
 #include <vector>
 #include <queue>
+#include <thread>
+#include <atomic>
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <signal.h>
+#include <cstdlib>
+#endif
 
 #include <inference_engine.hpp>
 #include <samples/ocv_common.hpp>
@@ -24,6 +32,7 @@
 #include "multiwii.h"
 #include "multiwii.hpp"
 #include "timer.hpp"
+#include "pid.h"
 
 using namespace InferenceEngine;
 
@@ -68,6 +77,7 @@ void frameToBlob(const cv::Mat& frame, InferRequest::Ptr& inferRequest, const st
     }
 }
 
+#if defined(_WIN32)
 bool launchDebugger()
 {
     // Get System directory, typically c:\windows\system32
@@ -103,6 +113,7 @@ bool launchDebugger()
     DebugBreak();
     return true;
 }
+#endif
 
 static std::vector<Color> colors = {
     {255, 255, 255},
@@ -127,53 +138,82 @@ struct Detection
     float size;
 };
 
-int main(int argc, char *argv[])
+void msp_runner(std::string serial_port)
 {
-    /*
-    ceSerial *serial = new ceSerial("COM3", 115200, 8, 'N', 1);
+    ceSerial* serial = new ceSerial(serial_port, 115200, 8, 'N', 1);
 
-    auto serial_code  = serial->Open();
+    auto serial_code = serial->Open();
     if (serial_code != 0)
     {
-        printf("Unable to open serial port: %i", serial_code);
+        printf("Unable to open serial port: %li\n", serial_code);
+        return;
     }
+
+    uint16_t throttle = 0;
+
+    bool in_rx_recovery = true;
 
     while (true)
     {
-        MspStatusEx* rcv = receive_parameters<MspStatusEx>(serial, MspCommand::STATUS_EX);
-        printf("flight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
+        Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial, Msp::MspCommand::STATUS_EX);
+        printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
 
         uint32_t arming_flags = rcv->arming_flags;
         for (unsigned int i = 0; i < 22; i++)
         {
-            slog::info << " " << i << ": " << ((arming_flags & (1u << i)) == (1u << i));
+            if (arming_flags & (1u << i))
+                slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
         }
 
-        slog::info << slog::endl << "Done processing \n\n";
+        if (in_rx_recovery)
+        {
+            Msp::MspReceiver reset_params = {
+                .roll = 1500,
+                .pitch = 1500,
+                .throttle = 900,
+                .yaw = 1500,
+                .aux_1 = 1000,
+                .aux_2 = 1000,
+                .aux_3 = 1000
+            };
+            Msp::send_command<Msp::MspReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &reset_params);
+        }
+        else
+        {
+            uint16_t new_throttle = throttle + 900;
 
-        /*printf("\n");
+            Msp::MspReceiver params = {
+                .roll = 1500,
+                .pitch = 1500,
+                .throttle = new_throttle,
+                .yaw = 1500,
+                .aux_1 = 1000,
+                .aux_2 = 1000,
+                .aux_3 = 2000
+            };
+            Msp::send_command<Msp::MspReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
 
-        MspReceiver params = {
-            .roll = 1500,
-            .pitch = 1500,
-            .throttle = 820,
-            .yaw = 1500,
-            .aux_1 = 1800
-        };
-        send_command<MspReceiver>(serial, MspCommand::SET_RAW_RC, &params);*
+            throttle = (throttle + 1) % 200;
+        }
 
-        // MspReceiver* motors = receive_parameters<MspReceiver>(fd, MspCommand::RC);
-        // printf("  roll: %u, pitch: %u, yaw: %u, throttle: %u \n", motors->value[0], motors->value[1], motors->value[2], motors->value[3]);
+        // If the drone loses RX and it's still armed then it will go into failsafe mode
+        // To get out of failsafe, we need to reset the throttle and disable the arming switch
+        // for 2 seconds before trying to do anything else
 
-        // printf("Acc (x: %d, y: %d, z: %d)\n", rcv->accx, rcv->accy, rcv->accz);
-        // printf("Gyr (x: %d, y: %d, z: %d)\n", rcv->gyrx, rcv->gyry, rcv->gyrz);
-        // printf("Mag (x: %d, y: %d, z: %d)\n", rcv->magx, rcv->magy, rcv->magz);
+        in_rx_recovery =
+            (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
+            || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE);
 
-        // usleep(500);
-        Sleep(500);
+#if defined(_WIN32)
+        Sleep(200);
+#else
+        usleep(200);
+#endif
     }
-    */
+}
 
+void detection_runner(int argc, char* argv[])
+{
     try {
         /** This demo covers 3 certain topologies and cannot be generalized **/
         slog::info << "InferenceEngine: " << GetInferenceEngineVersion() << slog::endl;
@@ -181,7 +221,7 @@ int main(int argc, char *argv[])
         // ------------------------------ Parsing and validation of input args ---------------------------------
         if (!ParseAndCheckCommandLine(argc, argv))
         {
-            return 0;
+            return;
         }
 
         cv::VideoCapture cap;
@@ -251,7 +291,7 @@ int main(int argc, char *argv[])
         // --------------------------- 3. Configure input & output ---------------------------------------------
         // --------------------------- Prepare input blobs -----------------------------------------------------
         slog::info << "Checking that the inputs are as the demo expects" << slog::endl;
-        
+
         InputsDataMap inputInfo(netReader.getNetwork().getInputsInfo());
         auto inputName = inputInfo.begin()->first;
         auto& input = inputInfo.begin()->second;
@@ -267,11 +307,6 @@ int main(int argc, char *argv[])
         {
             input->getInputData()->setLayout(Layout::NCHW);
         }
-
-        const auto& inputDesc = input->getTensorDesc();
-
-        size_t netInputHeight = getTensorHeight(inputDesc);
-        size_t netInputWidth = getTensorWidth(inputDesc);
 
         OutputsDataMap outputInfo(netReader.getNetwork().getOutputsInfo());
         auto outputName = outputInfo.begin()->first;
@@ -294,12 +329,6 @@ int main(int argc, char *argv[])
         // --------------------------- 5. Create infer request -------------------------------------------------
         InferRequest::Ptr async_infer_request_curr = network.CreateInferRequestPtr();
         InferRequest::Ptr async_infer_request_next = network.CreateInferRequestPtr();
-
-
-
-
-
-
 
 
         // --------------------------- 2. Read IR Generated by ModelOptimizer (.xml and .bin files) ------------
@@ -333,11 +362,6 @@ int main(int argc, char *argv[])
         {
             attr_input->getInputData()->setLayout(Layout::NCHW);
         }
-
-        const auto& attr_inputDesc = attr_input->getTensorDesc();
-
-        size_t attr_netInputHeight = getTensorHeight(attr_inputDesc);
-        size_t attr_netInputWidth = getTensorWidth(attr_inputDesc);
 
         OutputsDataMap attr_outputInfo(attr_netReader.getNetwork().getOutputsInfo());
 
@@ -376,14 +400,14 @@ int main(int argc, char *argv[])
         bool isTrackingCar = false;
         int iteration = -1;
 
+        PID pid_x(-100, 100, 0.1, 0.01, 0.5);
+        PID pid_y(-100, 100, 0.1, 0.01, 0.5);
+
         cv::Point2f prevCenter(-1, -1);
 
         typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
-
         auto total_t0 = std::chrono::high_resolution_clock::now();
         auto wallclock = std::chrono::high_resolution_clock::now();
-        auto total_time = std::chrono::high_resolution_clock::now();
-
         double ocv_decode_time = 0, ocv_render_time = 0;
 
         slog::info << "To close the application, press 'CTRL+C' here or switch to the output window and press ESC key" << slog::endl;
@@ -560,15 +584,21 @@ int main(int argc, char *argv[])
 
                     cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
 
-                    if (prevCenter.x != -1)
+                    /*if (prevCenter.x != -1)
                     {
                         cv::Point2f dc = center - prevCenter;
                         cv::Point2f dv = dc / wall.count();
 
                         std::cout << "Wall time: " << wall.count() << ", dv: " << dv << std::endl;
-                    }
+                    }*/
 
-                    prevCenter = center;
+                    //prevCenter = center;
+
+
+                    auto adj_x = pid_x.calculate(wall.count(), width / 2, center.x);
+                    auto adj_y = pid_y.calculate(wall.count(), height / 2, center.y);
+
+                    std::cout << "Adj: " << cv::Point2f(adj_x, adj_y) << std::endl;
                 }
             }
             cv::imshow("Detection results", curr_frame);
@@ -617,13 +647,25 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;
-        return 1;
+        return;
     }
     catch (...) {
         slog::err << "Unknown/internal exception happened." << slog::endl;
-        return 1;
+        return;
     }
 
     slog::info << "Execution successful" << slog::endl;
+}
+
+int main(int argc, char *argv[])
+{
+    setbuf(stdout, NULL);
+
+    std::thread msp_runner_thread(msp_runner, argv[1]);
+    //std::thread detection_runner_thread(detection_runner, argc, argv);
+
+    msp_runner_thread.join();
+    //detection_runner_thread.join();
+
     return 0;
 }

@@ -1,5 +1,8 @@
 #include "multiwii.h"
 
+namespace Msp
+{
+
 struct MspRequest
 {
     char preamble[2];
@@ -11,7 +14,7 @@ struct MspRequest
 
 char* concat_arrays(char* array1, size_t size1, char* array2, size_t size2)
 {
-    char* result = (char*)malloc(size1 + size2); 
+    char* result = (char*)malloc(size1 + size2);
     std::copy(array1, array1 + size1, result);
     std::copy(array2, array2 + size2, result + size1);
 
@@ -41,27 +44,8 @@ void print_bytes(char* data, size_t length)
     printf("\n");
 }
 
-std::string GetLastErrorAsString()
-{
-    //Get the error message, if any.
-    DWORD errorMessageID = ::GetLastError();
-    if (errorMessageID == 0)
-        return std::string(); //No error message has been recorded
-
-    LPSTR messageBuffer = nullptr;
-    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)& messageBuffer, 0, NULL);
-
-    std::string message(messageBuffer, size);
-
-    //Free the buffer.
-    LocalFree(messageBuffer);
-
-    return message;
-}
-
 template<typename T>
-T* send_raw_command(ceSerial *serial, MspCommand command, T* params)
+T* send_raw_command(ceSerial* serial, MspCommand command, T* params)
 {
     uint8_t param_size = 0;
     char* param_data = (char*)params;
@@ -85,7 +69,7 @@ T* send_raw_command(ceSerial *serial, MspCommand command, T* params)
         .command = command,
     };
 
-    char* result = (char*)&request;
+    char* result = (char*)& request;
     size_t result_size = sizeof(request);
 
     if (params != NULL)
@@ -104,20 +88,19 @@ T* send_raw_command(ceSerial *serial, MspCommand command, T* params)
     size_t crc_size = sizeof(crc);
     result = concat_arrays(
         result, result_size,
-        (char*)&crc, crc_size
+        (char*)& crc, crc_size
     );
     result_size += crc_size;
 
     // Write to serial port
     size_t write_length = serial->Write(result, result_size);
 
-    slog::info << "Sending: " << slog::endl;
-    print_bytes(result, result_size);
+    //slog::info << "Sending: " << slog::endl;
+    //print_bytes(result, result_size);
 
     if (write_length != result_size)
     {
         slog::err << "Error writing " << (int)result_size << " only wrote " << (int)write_length << slog::endl;
-        slog::err << "Message: " << GetLastErrorAsString();
         print_bytes(result, result_size);
         return NULL;
     }
@@ -140,13 +123,12 @@ T* send_raw_command(ceSerial *serial, MspCommand command, T* params)
     MspRequest rcv_request;
     memcpy(&rcv_request, rcv_data, sizeof(MspRequest));
 
-    slog::info << "Rcving: " << slog::endl;
-    print_bytes(rcv_data, rcv_size);
+    //slog::info << "Rcving: " << slog::endl;
+    //print_bytes(rcv_data, rcv_size);
 
     if (read_length != rcv_size)
     {
         slog::err << "Error reading " << (int)rcv_size << " only read " << (int)read_length << " (response told us to read " << (int)rcv_request.size << " bytes)" << slog::endl;
-        slog::err << "Message: " << GetLastErrorAsString() << slog::endl;
         print_bytes(rcv_data, rcv_size);
         return NULL;
     }
@@ -320,4 +302,5 @@ template<typename T>
 T* receive_parameters(ceSerial* serial, MspCommand command)
 {
     return send_raw_command<T>(serial, command, NULL);
+}
 }

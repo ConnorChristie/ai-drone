@@ -1,21 +1,25 @@
 #pragma once
 
-class PIDImpl;
 class PID
 {
-    public:
-        // Kp -  proportional gain
-        // Ki -  Integral gain
-        // Kd -  derivative gain
-        // dt -  loop interval time
-        // max - maximum value of manipulated variable
-        // min - minimum value of manipulated variable
-        PID( double dt, double max, double min, double Kp, double Kd, double Ki );
+public:
+    // Kp -  proportional gain
+    // Ki -  Integral gain
+    // Kd -  derivative gain
+    // max - maximum value of manipulated variable
+    // min - minimum value of manipulated variable
+    PID(float min, float max, float Kp, float Kd, float Ki);
 
-        // Returns the manipulated variable given a setpoint and current process value
-        double calculate( double setpoint, double pv );
-        ~PID();
+    // Returns the manipulated variable given a setpoint and current process value
+    float calculate(float dt, float setpoint, float pv);
+    ~PID();
 
-    private:
-        PIDImpl *pimpl;
+private:
+    float _max;
+    float _min;
+    float _Kp;
+    float _Kd;
+    float _Ki;
+    float _pre_error;
+    float _integral;
 };

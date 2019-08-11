@@ -9,108 +9,111 @@
 
 using namespace ce;
 
+namespace Msp
+{
+
 enum MspCommand : uint8_t
 {
-  // Out messages
-  API_VERSION          =  1,
-  FC_VARIANT           =  2,
-  FC_VERSION           =  3,
-  BOARD_INFO           =  4,
-  BUILD_INFO           =  5,
-  CALIBRATION_DATA     = 14,
-  FEATURE              = 36,
-  BOARD_ALIGNMENT      = 38,
-  CURRENT_METER_CONFIG = 40,
-  RX_CONFIG            = 44,
-  SONAR_ALTITUDE       = 58,
-  ARMING_CONFIG        = 61,
-  RX_MAP               = 64,     // get channel map (also returns number of channels total)
-  LOOP_TIME            = 73,     // FC cycle time i.e looptime parameter
-  FAILSAFE_CONFIG      = 75,     //out message         Returns FC Fail-Safe settings
-  STATUS               = 101,    //out message         cycletime & errors_count & sensor present & box activation & current setting number
-  RAW_IMU              = 102,    //out message         9 DOF
-  SERVO                = 103,    //out message         servos
-  MOTOR                = 104,    //out message         motors
-  RC                   = 105,    //out message         rc channels and more
-  RAW_GPS              = 106,    //out message         fix, numsat, lat, lon, alt, speed, ground course
-  COMP_GPS             = 107,    //out message         distance home, direction home
-  ATTITUDE             = 108,    //out message         2 angles 1 heading
-  ALTITUDE             = 109,    //out message         altitude, variometer
-  ANALOG               = 110,    //out message         vbat, powermetersum, rssi if available on RX
-  RC_TUNING            = 111,    //out message         rc rate, rc expo, rollpitch rate, yaw rate, dyn throttle PID
-  PID                  = 112,    //out message         P I D coeff (9 are used currently)
-  BOXNAMES             = 116,    //out message         the aux switch names
-  PIDNAMES             = 117,    //out message         the PID names
-  WP                   = 118,    //out message         get a WP, WP# is in the payload, returns (WP#, lat, lon, alt, flags) WP#0-home, WP#16-poshold
-  BOXIDS               = 119,    //out message         get the permanent IDs associated to BOXes
-  SERVO_CONFIGURATIONS = 120,    //out message         All servo configurations.
-  NAV_STATUS           = 121,    //out message         Returns navigation status
-  NAV_CONFIG           = 122,    //out message         Returns navigation parameters
-  MOTOR_3D_CONFIG      = 124,    //out message         Settings needed for reversible ESCs
-  RC_DEADBAND          = 125,    //out message         deadbands for yaw alt pitch roll
-  SENSOR_ALIGNMENT     = 126,    //out message         orientation of acc,gyro,mag
-  LED_STRIP_MODECOLOR  = 127,    //out message         Get LED strip mode_color settings
-  VOLTAGE_METERS       = 128,    //out message         Voltage (per meter)
-  CURRENT_METERS       = 129,    //out message         Amperage (per meter)
-  BATTERY_STATE        = 130,    //out message         Connected/Disconnected, Voltage, Current Used
-  MOTOR_CONFIG         = 131,    //out message         Motor configuration (min/max throttle, etc)
-  GPS_CONFIG           = 132,    //out message         GPS configuration
-  COMPASS_CONFIG       = 133,    //out message         Compass configuration
-  ESC_SENSOR_DATA      = 134,    //out message         Extra ESC data from 32-Bit ESCs (Temperature, RPM)
-  GPS_RESCUE           = 135,    //out message         GPS Rescues's angle, initialAltitude, descentDistance, rescueGroundSpeed, sanityChecks and minSats
-  GPS_RESCUE_PIDS      = 136,    //out message         GPS Rescues's throttleP and velocity PIDS + yaw P
-  STATUS_EX            = 150,    //out message         cycletime, errors_count, CPU load, sensor present etc
+    // Out messages
+    API_VERSION          =  1,
+    FC_VARIANT           =  2,
+    FC_VERSION           =  3,
+    BOARD_INFO           =  4,
+    BUILD_INFO           =  5,
+    CALIBRATION_DATA     = 14,
+    FEATURE              = 36,
+    BOARD_ALIGNMENT      = 38,
+    CURRENT_METER_CONFIG = 40,
+    RX_CONFIG            = 44,
+    SONAR_ALTITUDE       = 58,
+    ARMING_CONFIG        = 61,
+    RX_MAP               = 64,     // get channel map (also returns number of channels total)
+    LOOP_TIME            = 73,     // FC cycle time i.e looptime parameter
+    FAILSAFE_CONFIG      = 75,     //out message         Returns FC Fail-Safe settings
+    STATUS               = 101,    //out message         cycletime & errors_count & sensor present & box activation & current setting number
+    RAW_IMU              = 102,    //out message         9 DOF
+    SERVO                = 103,    //out message         servos
+    MOTOR                = 104,    //out message         motors
+    RC                   = 105,    //out message         rc channels and more
+    RAW_GPS              = 106,    //out message         fix, numsat, lat, lon, alt, speed, ground course
+    COMP_GPS             = 107,    //out message         distance home, direction home
+    ATTITUDE             = 108,    //out message         2 angles 1 heading
+    ALTITUDE             = 109,    //out message         altitude, variometer
+    ANALOG               = 110,    //out message         vbat, powermetersum, rssi if available on RX
+    RC_TUNING            = 111,    //out message         rc rate, rc expo, rollpitch rate, yaw rate, dyn throttle PID
+    PID                  = 112,    //out message         P I D coeff (9 are used currently)
+    BOXNAMES             = 116,    //out message         the aux switch names
+    PIDNAMES             = 117,    //out message         the PID names
+    WP                   = 118,    //out message         get a WP, WP# is in the payload, returns (WP#, lat, lon, alt, flags) WP#0-home, WP#16-poshold
+    BOXIDS               = 119,    //out message         get the permanent IDs associated to BOXes
+    SERVO_CONFIGURATIONS = 120,    //out message         All servo configurations.
+    NAV_STATUS           = 121,    //out message         Returns navigation status
+    NAV_CONFIG           = 122,    //out message         Returns navigation parameters
+    MOTOR_3D_CONFIG      = 124,    //out message         Settings needed for reversible ESCs
+    RC_DEADBAND          = 125,    //out message         deadbands for yaw alt pitch roll
+    SENSOR_ALIGNMENT     = 126,    //out message         orientation of acc,gyro,mag
+    LED_STRIP_MODECOLOR  = 127,    //out message         Get LED strip mode_color settings
+    VOLTAGE_METERS       = 128,    //out message         Voltage (per meter)
+    CURRENT_METERS       = 129,    //out message         Amperage (per meter)
+    BATTERY_STATE        = 130,    //out message         Connected/Disconnected, Voltage, Current Used
+    MOTOR_CONFIG         = 131,    //out message         Motor configuration (min/max throttle, etc)
+    GPS_CONFIG           = 132,    //out message         GPS configuration
+    COMPASS_CONFIG       = 133,    //out message         Compass configuration
+    ESC_SENSOR_DATA      = 134,    //out message         Extra ESC data from 32-Bit ESCs (Temperature, RPM)
+    GPS_RESCUE           = 135,    //out message         GPS Rescues's angle, initialAltitude, descentDistance, rescueGroundSpeed, sanityChecks and minSats
+    GPS_RESCUE_PIDS      = 136,    //out message         GPS Rescues's throttleP and velocity PIDS + yaw P
+    STATUS_EX            = 150,    //out message         cycletime, errors_count, CPU load, sensor present etc
 
-  SET_FAILSAFE_CONFIG     = 76,     //in message          Sets FC Fail-Safe settings
-  SET_RAW_RC              = 200,    //in message          8 rc chan
-  SET_RAW_GPS             = 201,    //in message          fix, numsat, lat, lon, alt, speed
-  SET_PID                 = 202,    //in message          P I D coeff (9 are used currently)
-  SET_RC_TUNING           = 204,    //in message          rc rate, rc expo, rollpitch rate, yaw rate, dyn throttle PID, yaw expo
-  ACC_CALIBRATION         = 205,    //in message          no param
-  MAG_CALIBRATION         = 206,    //in message          no param
-  RESET_CONF              = 208,    //in message          no param
-  SET_WP                  = 209,    //in message          sets a given WP (WP#,lat, lon, alt, flags)
-  SELECT_SETTING          = 210,    //in message          Select Setting Number (0-2)
-  SET_HEADING             = 211,    //in message          define a new heading hold direction
-  SET_SERVO_CONFIGURATION = 212,    //in message          Servo settings
-  SET_MOTOR               = 214,    //in message          PropBalance function
-  SET_NAV_CONFIG          = 215,    //in message          Sets nav config parameters - write to the eeprom
-  SET_MOTOR_3D_CONFIG     = 217,    //in message          Settings needed for reversible ESCs
-  SET_RC_DEADBAND         = 218,    //in message          deadbands for yaw alt pitch roll
-  SET_RESET_CURR_PID      = 219,    //in message          resetting the current pid profile to defaults
-  SET_SENSOR_ALIGNMENT    = 220,    //in message          set the orientation of the acc,gyro,mag
-  SET_LED_STRIP_MODECOLOR = 221,    //in  message         Set LED strip mode_color settings
-  SET_MOTOR_CONFIG        = 222,    //out message         Motor configuration (min/max throttle, etc)
-  SET_GPS_CONFIG          = 223,    //out message         GPS configuration
-  SET_COMPASS_CONFIG      = 224,    //out message         Compass configuration
-  SET_GPS_RESCUE          = 225,    //in message          GPS Rescues's angle, initialAltitude, descentDistance, rescueGroundSpeed, sanityChecks and minSats
-  SET_GPS_RESCUE_PIDS     = 226     //in message          GPS Rescues's throttleP and velocity PIDS + yaw P
+    SET_FAILSAFE_CONFIG     = 76,     //in message          Sets FC Fail-Safe settings
+    SET_RAW_RC              = 200,    //in message          8 rc chan
+    SET_RAW_GPS             = 201,    //in message          fix, numsat, lat, lon, alt, speed
+    SET_PID                 = 202,    //in message          P I D coeff (9 are used currently)
+    SET_RC_TUNING           = 204,    //in message          rc rate, rc expo, rollpitch rate, yaw rate, dyn throttle PID, yaw expo
+    ACC_CALIBRATION         = 205,    //in message          no param
+    MAG_CALIBRATION         = 206,    //in message          no param
+    RESET_CONF              = 208,    //in message          no param
+    SET_WP                  = 209,    //in message          sets a given WP (WP#,lat, lon, alt, flags)
+    SELECT_SETTING          = 210,    //in message          Select Setting Number (0-2)
+    SET_HEADING             = 211,    //in message          define a new heading hold direction
+    SET_SERVO_CONFIGURATION = 212,    //in message          Servo settings
+    SET_MOTOR               = 214,    //in message          PropBalance function
+    SET_NAV_CONFIG          = 215,    //in message          Sets nav config parameters - write to the eeprom
+    SET_MOTOR_3D_CONFIG     = 217,    //in message          Settings needed for reversible ESCs
+    SET_RC_DEADBAND         = 218,    //in message          deadbands for yaw alt pitch roll
+    SET_RESET_CURR_PID      = 219,    //in message          resetting the current pid profile to defaults
+    SET_SENSOR_ALIGNMENT    = 220,    //in message          set the orientation of the acc,gyro,mag
+    SET_LED_STRIP_MODECOLOR = 221,    //in  message         Set LED strip mode_color settings
+    SET_MOTOR_CONFIG        = 222,    //out message         Motor configuration (min/max throttle, etc)
+    SET_GPS_CONFIG          = 223,    //out message         GPS configuration
+    SET_COMPASS_CONFIG      = 224,    //out message         Compass configuration
+    SET_GPS_RESCUE          = 225,    //in message          GPS Rescues's angle, initialAltitude, descentDistance, rescueGroundSpeed, sanityChecks and minSats
+    SET_GPS_RESCUE_PIDS     = 226     //in message          GPS Rescues's throttleP and velocity PIDS + yaw P
 };
 
 enum MspArmingDisableFlags : uint32_t
 {
-  ARMING_DISABLED_NO_GYRO         = (1 << 0),
-  ARMING_DISABLED_FAILSAFE        = (1 << 1),
-  ARMING_DISABLED_RX_FAILSAFE     = (1 << 2),
-  ARMING_DISABLED_BAD_RX_RECOVERY = (1 << 3),
-  ARMING_DISABLED_BOXFAILSAFE     = (1 << 4),
-  ARMING_DISABLED_RUNAWAY_TAKEOFF = (1 << 5),
-  ARMING_DISABLED_CRASH_DETECTED  = (1 << 6),
-  ARMING_DISABLED_THROTTLE        = (1 << 7),
-  ARMING_DISABLED_ANGLE           = (1 << 8),
-  ARMING_DISABLED_BOOT_GRACE_TIME = (1 << 9),
-  ARMING_DISABLED_NOPREARM        = (1 << 10),
-  ARMING_DISABLED_LOAD            = (1 << 11),
-  ARMING_DISABLED_CALIBRATING     = (1 << 12),
-  ARMING_DISABLED_CLI             = (1 << 13),
-  ARMING_DISABLED_CMS_MENU        = (1 << 14),
-  ARMING_DISABLED_BST             = (1 << 15),
-  ARMING_DISABLED_MSP             = (1 << 16),
-  ARMING_DISABLED_PARALYZE        = (1 << 17),
-  ARMING_DISABLED_GPS             = (1 << 18),
-  ARMING_DISABLED_RESC            = (1 << 19),
-  ARMING_DISABLED_RPMFILTER       = (1 << 20),
-  ARMING_DISABLED_ARM_SWITCH      = (1 << 21)
+    ARMING_DISABLED_NO_GYRO         = (1 << 0),
+    ARMING_DISABLED_FAILSAFE        = (1 << 1),
+    ARMING_DISABLED_RX_FAILSAFE     = (1 << 2),
+    ARMING_DISABLED_BAD_RX_RECOVERY = (1 << 3),
+    ARMING_DISABLED_BOXFAILSAFE     = (1 << 4),
+    ARMING_DISABLED_RUNAWAY_TAKEOFF = (1 << 5),
+    ARMING_DISABLED_CRASH_DETECTED  = (1 << 6),
+    ARMING_DISABLED_THROTTLE        = (1 << 7),
+    ARMING_DISABLED_ANGLE           = (1 << 8),
+    ARMING_DISABLED_BOOT_GRACE_TIME = (1 << 9),
+    ARMING_DISABLED_NOPREARM        = (1 << 10),
+    ARMING_DISABLED_LOAD            = (1 << 11),
+    ARMING_DISABLED_CALIBRATING     = (1 << 12),
+    ARMING_DISABLED_CLI             = (1 << 13),
+    ARMING_DISABLED_CMS_MENU        = (1 << 14),
+    ARMING_DISABLED_BST             = (1 << 15),
+    ARMING_DISABLED_MSP             = (1 << 16),
+    ARMING_DISABLED_PARALYZE        = (1 << 17),
+    ARMING_DISABLED_GPS             = (1 << 18),
+    ARMING_DISABLED_RESC            = (1 << 19),
+    ARMING_DISABLED_RPMFILTER       = (1 << 20),
+    ARMING_DISABLED_ARM_SWITCH      = (1 << 21)
 };
 
 enum MspFlightModeFlags : uint32_t
@@ -339,3 +342,5 @@ struct MspBoardAlignment
   int16_t yaw_deci_degrees;
 };
 #pragma pack(pop)
+
+}

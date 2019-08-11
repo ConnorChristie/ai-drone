@@ -1,12 +1,9 @@
-## Running
+Initial CMAKE command:
 ```shell
-$ cd /Users/connor/Documents/git/deep-learning/drone
+$ docker run -v D:\Git\drone-c++:/root/build armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE=/root/arm-openvino.toolchain.cmake -BbuildArm -H.
 ```
 
+Build command:
 ```shell
-$ docker run -v /Users/connor/Documents/git/deep-learning/drone:/root/build armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE=/root/arm-openvino.toolchain.cmake -BbuildArm -H.
-```
-
-```shell
-$ docker run -v /Users/connor/Documents/git/deep-learning/drone:/root/build armv7_openvino make -j7 -C buildArm
+$ docker run -v D:\Git\drone-c++:/root/build armv7_openvino make -j7 -C buildArm
 ```
