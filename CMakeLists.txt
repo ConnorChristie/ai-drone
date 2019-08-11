@@ -96,7 +96,7 @@ include_directories (
 )
 add_subdirectory(common/format_reader)
 
-find_package(InferenceEngine 1.6 REQUIRED)
+find_package(InferenceEngine 2.0 REQUIRED)
 
 if (UNIX)
     set (LIB_DL dl)

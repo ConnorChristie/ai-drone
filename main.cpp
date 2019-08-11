@@ -534,8 +534,8 @@ void detection_runner()
 
                     cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
 
-                    auto adj_x = pid_x.calculate(wall.count(), width / 2, center.x);
-                    auto adj_y = pid_y.calculate(wall.count(), height / 2, center.y);
+                    auto adj_x = pid_x.calculate(wall.count() / 1000, width / 2, center.x);
+                    auto adj_y = pid_y.calculate(wall.count() / 1000, height / 2, center.y);
 
                     std::cout << "Adj: " << cv::Point2f(adj_x, adj_y) << std::endl;
                 }
@@ -599,18 +599,29 @@ void detection_runner()
 
 int main(int argc, char *argv[])
 {
-    setbuf(stdout, NULL);
-
-    if (!ParseAndCheckCommandLine(argc, argv))
+    try
     {
+        setbuf(stdout, NULL);
+
+        if (!ParseAndCheckCommandLine(argc, argv))
+        {
+            return -1;
+        }
+
+        //std::thread msp_runner_thread(msp_runner);
+        std::thread detection_runner_thread(detection_runner);
+
+        //msp_runner_thread.join();
+        detection_runner_thread.join();
+    }
+    catch (const std::exception& error) {
+        slog::err << error.what() << slog::endl;
         return -1;
     }
-
-    std::thread msp_runner_thread(msp_runner);
-    //std::thread detection_runner_thread(detection_runner);
-
-    msp_runner_thread.join();
-    //detection_runner_thread.join();
+    catch (...) {
+        slog::err << "Unknown/internal exception happened." << slog::endl;
+        return -1;
+    }
 
     return 0;
 }
