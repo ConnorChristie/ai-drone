@@ -531,10 +531,10 @@ int main(int argc, char *argv[])
         DroneController drone_controller(FLAGS_msp_port_name);
 
         std::thread drone_controller_thread(&DroneController::run, drone_controller);
-        //std::thread detection_runner_thread(detection_runner);
+        std::thread detection_runner_thread(detection_runner);
 
         drone_controller_thread.join();
-        //detection_runner_thread.join();
+        detection_runner_thread.join();
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;
