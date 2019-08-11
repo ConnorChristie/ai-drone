@@ -1,2 +1,5 @@
 build/
 buildArm/
+
+.vs/
+CMakeSettings.json

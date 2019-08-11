@@ -1,8 +1,3 @@
-// Copyright (C) 2018-2019 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-//
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
 #include <string>
@@ -23,7 +18,10 @@ static const char help_message[] = "Print a usage message.";
 static const char video_message[] = "Required. Path to video or image files. Default value is \"cam\" to work with cameras.";
 
 /// @brief message for model argument
-static const char vehicle_detection_model_message[] = "Required. Path to the Vehicle and License Plate Detection model .xml file.";
+static const char vehicle_detection_model_message[] = "Required. Path to the Vehicle Detection model .xml file.";
+
+/// @brief message for model argument
+static const char vehicle_attr_detection_model_message[] = "Required. Path to the Vehicle Attribute Detection model .xml file.";
 
 /// @brief message for assigning vehicle detection inference to device
 static const char target_device_message[] = "Optional. Specify the target device for Vehicle Detection "\
@@ -78,6 +76,9 @@ static const char ninputs_message[] = "Optional. Specify the number of inputs to
 /// @brief Message for display resolution argument
 static const char display_resolution_message[] = "Optional. Specify the maximum output window resolution.";
 
+/// @brief Message for msp serial argument
+static const char msp_serial_message[] = "Required. Specify the serial port to use for MSP communication.";
+
 /// \brief Define flag for showing help message <br>
 DEFINE_bool(h, false, help_message);
 
@@ -85,9 +86,13 @@ DEFINE_bool(h, false, help_message);
 /// It is a required parameter
 DEFINE_string(i, "cam", video_message);
 
-/// \brief Define parameter for vehicle detection  model file <br>
+/// \brief Define parameter for vehicle detection model file <br>
 /// It is a required parameter
 DEFINE_string(m, "", vehicle_detection_model_message);
+
+/// \brief Define parameter for vehicle attribute detection model file <br>
+/// It is a required parameter
+DEFINE_string(ma, "", vehicle_attr_detection_model_message);
 
 /// \brief device the target device for vehicle detection infer on <br>
 DEFINE_string(d, "CPU", target_device_message);
@@ -142,6 +147,9 @@ DEFINE_int32(ni, -1, ninputs_message);
 /// It is an optional parameter
 DEFINE_string(display_resolution, "1920x1080", display_resolution_message);
 
+/// \brief Flag to specify the MSP serial port to use<br>
+DEFINE_string(msp_port_name, "", msp_serial_message);
+
 /**
 * \brief This function show a help message
 */
@@ -168,4 +176,5 @@ static void showUsage() {
     std::cout << "    -loop_video                " << loop_video_output_message << std::endl;
     std::cout << "    -ni                        " << ninputs_message << std::endl;
     std::cout << "    -display_resolution        " << display_resolution_message << std::endl;
+    std::cout << "    -msp_port_name             " << msp_serial_message << std::endl;
 }

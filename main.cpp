@@ -27,18 +27,23 @@
 #include <ie_iextension.h>
 #include <ext_list.hpp>
 
-#include "security_barrier_camera.hpp"
-
+#include "drone.hpp"
 #include "multiwii.h"
 #include "multiwii.hpp"
 #include "timer.hpp"
+#include "utils.hpp"
 #include "pid.h"
+
+#ifdef _WIN32
+#define CALL(windows_fn, unix_fn, args) windows_fn(args)
+#else
+#define CALL(windows_fn, unix_fn, args) unix_fn(args)
+#endif
 
 using namespace InferenceEngine;
 
-bool ParseAndCheckCommandLine(int argc, char *argv[]) {
-    // ---------------------------Parsing and validation of input args--------------------------------------
-
+bool ParseAndCheckCommandLine(int argc, char *argv[])
+{
     gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
     if (FLAGS_h) {
         showUsage();
@@ -53,6 +58,10 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
 
     if (FLAGS_m.empty()) {
         throw std::logic_error("Parameter -m is not set");
+    }
+
+    if (FLAGS_msp_port_name.empty()) {
+        throw std::logic_error("Parameter -msp_port_name is not set");
     }
 
     if (FLAGS_display_resolution.find("x") == std::string::npos) {
@@ -77,44 +86,6 @@ void frameToBlob(const cv::Mat& frame, InferRequest::Ptr& inferRequest, const st
     }
 }
 
-#if defined(_WIN32)
-bool launchDebugger()
-{
-    // Get System directory, typically c:\windows\system32
-    std::wstring systemDir(MAX_PATH + 1, '\0');
-    UINT nChars = GetSystemDirectoryW(&systemDir[0], systemDir.length());
-    if (nChars == 0) return false; // failed to get system directory
-    systemDir.resize(nChars);
-
-    // Get process ID and create the command line
-    DWORD pid = GetCurrentProcessId();
-    std::wostringstream s;
-    s << systemDir << L"\\vsjitdebugger.exe -p " << pid;
-    std::wstring cmdLine = s.str();
-
-    // Start debugger process
-    STARTUPINFOW si;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&pi, sizeof(pi));
-
-    if (!CreateProcessW(NULL, &cmdLine[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) return false;
-
-    // Close debugger process handles to eliminate resource leak
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-
-    // Wait for the debugger to attach
-    while (!IsDebuggerPresent()) Sleep(100);
-
-    // Stop execution so the debugger can take over
-    DebugBreak();
-    return true;
-}
-#endif
-
 static std::vector<Color> colors = {
     {255, 255, 255},
     {155, 155, 155},
@@ -138,9 +109,9 @@ struct Detection
     float size;
 };
 
-void msp_runner(std::string serial_port)
+void msp_runner()
 {
-    ceSerial* serial = new ceSerial(serial_port, 115200, 8, 'N', 1);
+    ceSerial* serial = new ceSerial(FLAGS_msp_port_name, 115200, 8, 'N', 1);
 
     auto serial_code = serial->Open();
     if (serial_code != 0)
@@ -204,25 +175,15 @@ void msp_runner(std::string serial_port)
             (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
             || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE);
 
-#if defined(_WIN32)
-        Sleep(200);
-#else
-        usleep(200);
-#endif
+        CALL(Sleep, usleep, 200);
     }
 }
 
-void detection_runner(int argc, char* argv[])
+void detection_runner()
 {
-    try {
-        /** This demo covers 3 certain topologies and cannot be generalized **/
+    try
+    {
         slog::info << "InferenceEngine: " << GetInferenceEngineVersion() << slog::endl;
-
-        // ------------------------------ Parsing and validation of input args ---------------------------------
-        if (!ParseAndCheckCommandLine(argc, argv))
-        {
-            return;
-        }
 
         cv::VideoCapture cap;
         if (!((FLAGS_i == "cam") ? cap.open(0) : cap.open(FLAGS_i.c_str())))
@@ -281,11 +242,10 @@ void detection_runner(int argc, char* argv[])
         slog::info << "Loading network files" << slog::endl;
 
         CNNNetReader netReader;
-        std::string binFileName = fileNameNoExt(FLAGS_m) + ".bin";
 
         netReader.ReadNetwork(FLAGS_m);
         netReader.getNetwork().setBatchSize(1);
-        netReader.ReadWeights(binFileName);
+        netReader.ReadWeights(fileNameNoExt(FLAGS_m) + ".bin");
 
         /** SSD-based network should have one input and one output **/
         // --------------------------- 3. Configure input & output ---------------------------------------------
@@ -336,15 +296,12 @@ void detection_runner(int argc, char* argv[])
         slog::info << "Loading network files" << slog::endl;
 
         CNNNetReader attr_netReader;
-        std::string attr_binFileName = "D:\\Git\\drone-c++\\Security\\object_attributes\\vehicle\\resnet10_update_1\\dldt\\FP16\\vehicle-attributes-recognition-barrier-0039.bin";
 
-        attr_netReader.ReadNetwork("D:\\Git\\drone-c++\\Security\\object_attributes\\vehicle\\resnet10_update_1\\dldt\\FP16\\vehicle-attributes-recognition-barrier-0039.xml");
+        attr_netReader.ReadNetwork(FLAGS_ma);
         attr_netReader.getNetwork().setBatchSize(1);
-        attr_netReader.ReadWeights(attr_binFileName);
+        attr_netReader.ReadWeights(fileNameNoExt(FLAGS_ma) + ".bin");
 
-        /** SSD-based network should have one input and one output **/
         // --------------------------- 3. Configure input & output ---------------------------------------------
-        // --------------------------- Prepare input blobs -----------------------------------------------------
         slog::info << "Checking that the inputs are as the demo expects" << slog::endl;
 
         InputsDataMap attr_inputInfo(attr_netReader.getNetwork().getInputsInfo());
@@ -373,14 +330,6 @@ void detection_runner(int argc, char* argv[])
         type_output->setPrecision(Precision::FP32);
         type_output->setLayout(Layout::NCHW);
 
-        /*
-        const SizeVector attr_outputDims = attr_output->getTensorDesc().getDims();
-        const int attr_maxProposalCount = attr_outputDims[2];
-        const int attr_objectSize = attr_outputDims[3];
-
-        assert(attr_objectSize == 1);
-        assert(attr_outputDims.size() == 4);*/
-
         // --------------------------- 4. Loading model to the device ------------------------------------------
         slog::info << "Loading model to the device" << slog::endl;
         ExecutableNetwork attr_network = ie.LoadNetwork(attr_netReader.getNetwork(), FLAGS_d);
@@ -388,13 +337,11 @@ void detection_runner(int argc, char* argv[])
         // --------------------------- 5. Create infer request -------------------------------------------------
         InferRequest::Ptr attr_infer_request = attr_network.CreateInferRequestPtr();
 
-
-
-        //// --------------------------- 6. Do inference ---------------------------------------------------------
+        // --------------------------- 6. Do inference ---------------------------------------------------------
         slog::info << "Start inference " << slog::endl;
 
         bool isLastFrame = false;
-        bool isAsyncMode = true;  // execution is always started using SYNC mode
+        bool isAsyncMode = true;
         bool isModeChanged = false;  // set to TRUE when execution mode is changed (SYNC<->ASYNC)
 
         bool isTrackingCar = false;
@@ -472,12 +419,15 @@ void detection_runner(int argc, char* argv[])
                 out << "OpenCV cap/render time: " << std::fixed << std::setprecision(2)
                     << (ocv_decode_time + ocv_render_time) << " ms";
                 cv::putText(curr_frame, out.str(), cv::Point2f(0, 25), cv::FONT_HERSHEY_TRIPLEX, 0.5, cv::Scalar(255, 255, 255));
+
                 out.str("");
                 out << "Wallclock time " << (isAsyncMode ? "(TRUE ASYNC): " : "(SYNC, press Tab): ");
                 out << std::fixed << std::setprecision(2) << wall.count() << " ms (" << 1000.f / wall.count() << " fps)";
                 cv::putText(curr_frame, out.str(), cv::Point2f(0, 50), cv::FONT_HERSHEY_TRIPLEX, 0.5, cv::Scalar(255, 255, 255));
+
+                // In the true async mode, there is no way to measure detection time directly
                 if (!isAsyncMode)
-                {  // In the true async mode, there is no way to measure detection time directly
+                {
                     out.str("");
                     out << "Detection time  : " << std::fixed << std::setprecision(2) << detection_time.count()
                         << " ms ("
@@ -534,7 +484,7 @@ void detection_runner(int argc, char* argv[])
 
                 if (detections.size() == 0)
                 {
-                    // LOST track of the car
+                    // Lost track of the car
                     slog::warn << "No vehicles found this frame, did we lose track of it?" << slog::endl;
 
                     continue;
@@ -584,23 +534,13 @@ void detection_runner(int argc, char* argv[])
 
                     cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
 
-                    /*if (prevCenter.x != -1)
-                    {
-                        cv::Point2f dc = center - prevCenter;
-                        cv::Point2f dv = dc / wall.count();
-
-                        std::cout << "Wall time: " << wall.count() << ", dv: " << dv << std::endl;
-                    }*/
-
-                    //prevCenter = center;
-
-
                     auto adj_x = pid_x.calculate(wall.count(), width / 2, center.x);
                     auto adj_y = pid_y.calculate(wall.count(), height / 2, center.y);
 
                     std::cout << "Adj: " << cv::Point2f(adj_x, adj_y) << std::endl;
                 }
             }
+
             cv::imshow("Detection results", curr_frame);
 
             t1 = std::chrono::high_resolution_clock::now();
@@ -626,10 +566,10 @@ void detection_runner(int argc, char* argv[])
             }
 
             const int key = cv::waitKey(1);
-            if (27 == key)  // Esc
+            if (27 == key) // Esc
                 break;
-            if (9 == key)
-            {  // Tab
+            if (9 == key)  // Tab
+            {
                 isAsyncMode ^= true;
                 isModeChanged = true;
             }
@@ -661,8 +601,13 @@ int main(int argc, char *argv[])
 {
     setbuf(stdout, NULL);
 
-    std::thread msp_runner_thread(msp_runner, argv[1]);
-    //std::thread detection_runner_thread(detection_runner, argc, argv);
+    if (!ParseAndCheckCommandLine(argc, argv))
+    {
+        return -1;
+    }
+
+    std::thread msp_runner_thread(msp_runner);
+    //std::thread detection_runner_thread(detection_runner);
 
     msp_runner_thread.join();
     //detection_runner_thread.join();
