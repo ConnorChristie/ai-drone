@@ -72,7 +72,7 @@ endif()
 ## to use C++20 for Windows otherwise use C++11
 set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
-if (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
+if (APPLE OR UNIX)
     set (CMAKE_CXX_STANDARD 11)
     set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 endif()

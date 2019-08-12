@@ -3,4 +3,5 @@ build/
 buildArm/
 
 .vs/
+.vscode/
 CMakeSettings.json
