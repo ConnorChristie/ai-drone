@@ -25,8 +25,8 @@
         LD_LIBRARY_PATH=lib ./drone \
         -m models/Transportation/object_detection/vehicle/mobilenet-reduced-ssd/dldt/FP16/vehicle-detection-adas-0002.xml \
         -ma models/Security/object_attributes/vehicle/resnet10_update_1/dldt/FP16/vehicle-attributes-recognition-barrier-0039.xml \
-        -msp_port_name /dev/serial0 \
         -d MYRIAD \
+        -msp_port_name /dev/serial0 \
         -i car_smaller.mp4
 
 ## Running on Windows
@@ -44,9 +44,4 @@ This is helpful for debugging since you can run the project from right within Vi
 
 3. Run the command:
 
-        drone.exe \
-        -m "D:\Git\drone-c++\models\Transportation\object_detection\vehicle\mobilenet-reduced-ssd\dldt\FP16\vehicle-detection-adas-0002.xml" \
-        -ma "D:\Git\drone-c++\models\Security\object_attributes\vehicle\resnet10_update_1\dldt\FP16\vehicle-attributes-recognition-barrier-0039.xml" \
-        -d MYRIAD \
-        -msp_port_name COM3 \
-        -i D:\Git\drone\car_smaller.mp4
+        drone.exe -m "models\Transportation\object_detection\vehicle\mobilenet-reduced-ssd\dldt\FP16\vehicle-detection-adas-0002.xml" -ma "models\Security\object_attributes\vehicle\resnet10_update_1\dldt\FP16\vehicle-attributes-recognition-barrier-0039.xml" -d MYRIAD -msp_port_name COM3 -i vids\car_480p.mp4

@@ -10,7 +10,7 @@
 #include <string>
 #include <time.h>
 
-#include <samples/slog.hpp>
+#include "slog.hpp"
 
 /**
  * @class CsvDumper

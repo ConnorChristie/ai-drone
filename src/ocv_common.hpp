@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <samples/common.hpp>
+#include "common.hpp"
 #include <opencv2/opencv.hpp>
 
 /**

@@ -5,7 +5,7 @@
 #include <limits>
 
 #include <ceSerial.h>
-#include <samples/slog.hpp>
+#include "slog.hpp"
 
 using namespace ce;
 using namespace std;

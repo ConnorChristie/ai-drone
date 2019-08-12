@@ -20,15 +20,14 @@
 #endif
 
 #include <inference_engine.hpp>
-#include <samples/ocv_common.hpp>
-#include <samples/slog.hpp>
-#include <samples/args_helper.hpp>
 #include <ie_iextension.h>
 #include <ext_list.hpp>
 
+#include "ocv_common.hpp"
+#include "slog.hpp"
+
 #include "drone.hpp"
 #include "timer.hpp"
-
 #include "multiwii.h"
 #include "utils.h"
 #include "pid.h"

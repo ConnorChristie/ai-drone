@@ -1,6 +1,6 @@
 #pragma once
 
-#include <samples/ocv_common.hpp>
+#include "ocv_common.hpp"
 
 #ifdef _WIN32
 #define CALL(windows_fn, unix_fn, args) windows_fn(args)
