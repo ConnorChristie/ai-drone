@@ -103,7 +103,7 @@ struct Detection
     float size;
 };
 
-void detection_runner()
+void detection_runner(DroneController* drone_controller)
 {
     try
     {
@@ -264,11 +264,6 @@ void detection_runner()
 
         bool isTrackingCar = false;
         int iteration = -1;
-
-        PID pid_x(-100, 100, 0.1, 0.01, 0.5);
-        PID pid_y(-100, 100, 0.1, 0.01, 0.5);
-
-        cv::Point2f prevCenter(-1, -1);
 
         typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
         auto total_t0 = std::chrono::high_resolution_clock::now();
@@ -454,10 +449,9 @@ void detection_runner()
 
                     cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
 
-                    auto adj_x = pid_x.calculate(wall.count() / 1000, width / 2, center.x);
-                    auto adj_y = pid_y.calculate(wall.count() / 1000, height / 2, center.y);
+                    auto dt = wall.count() / 1000;
 
-                    std::cout << "Adj: " << cv::Point2f(adj_x, adj_y) << std::endl;
+                    drone_controller->update_pid(dt, width / 2, height / 2, center.x, center.y);
                 }
             }
 
@@ -531,7 +525,7 @@ int main(int argc, char *argv[])
         DroneController drone_controller(FLAGS_msp_port_name);
 
         std::thread drone_controller_thread(&DroneController::run, drone_controller);
-        std::thread detection_runner_thread(detection_runner);
+        std::thread detection_runner_thread(detection_runner, &drone_controller);
 
         drone_controller_thread.join();
         detection_runner_thread.join();

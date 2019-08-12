@@ -1,8 +1,15 @@
 #include "drone_controller.h"
 
 DroneController::DroneController(std::string msp_port_name) :
-    msp_port_name(msp_port_name)
+    msp_port_name(msp_port_name),
+    pid_x(-100, 100, 0.1, 0.01, 0.5),
+    pid_y(-100, 100, 0.1, 0.01, 0.5)
 { }
+
+std::atomic<DroneFlightMode> DroneController::flight_mode{ DroneFlightMode::ARM_MODE };
+
+std::atomic<float> DroneController::dx{ 0 };
+std::atomic<float> DroneController::dy{ 0 };
 
 void DroneController::run()
 {
@@ -19,10 +26,14 @@ void DroneController::run()
 
     uint16_t throttle = 0;
 
-    bool in_rx_recovery = true;
+    auto t0 = high_resolution_clock::now();
 
-    typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
-    auto t0 = std::chrono::high_resolution_clock::now();
+    // 1. Arm
+    //   a. Keep sending 0 throttle and disable arm
+    // 2. Hover up until y is good
+    // 3. Begin follow procedure
+
+    high_resolution_clock::time_point hover_begin;
 
     while (true)
     {
@@ -36,44 +47,65 @@ void DroneController::run()
                 slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
         }
 
-        if (in_rx_recovery)
+        if ((arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
+            || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE))
         {
-            Msp::MspReceiver reset_params = {
-                .roll = 1500,
-                .pitch = 1500,
-                .throttle = 900,
-                .yaw = 1500,
-                .aux_1 = 1000,
-                .aux_2 = 1000,
-                .aux_3 = 1000
-            };
-            Msp::send_command<Msp::MspReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &reset_params);
-        }
-        else
-        {
-            uint16_t new_throttle = throttle + 900;
+            // If the drone loses RX and it's still armed then it will go into failsafe mode
+            // To get out of failsafe, we need to reset the throttle and disable the arming switch
+            // for 2 seconds before trying to do anything else
 
-            Msp::MspReceiver params = {
-                .roll = 1500,
-                .pitch = 1500,
-                .throttle = new_throttle,
-                .yaw = 1500,
-                .aux_1 = 1000,
-                .aux_2 = 1000,
-                .aux_3 = 2000
+            flight_mode = DroneFlightMode::ARM_MODE;
+        }
+        else if (flight_mode == DroneFlightMode::ARM_MODE)
+        {
+            flight_mode = DroneFlightMode::HOVER_MODE;
+            hover_begin = high_resolution_clock::now();
+        }
+        else if (flight_mode == DroneFlightMode::HOVER_MODE)
+        {
+            auto t1 = high_resolution_clock::now();
+            auto time_diff = duration_cast<ms>(t1 - hover_begin).count();
+
+            // 1. Increase throttle until we reach correct Y height (follow PID)
+            // 2. Timeout after a couple of seconds then decrease throttle
+
+            if (time_diff >= HOVER_TIMEOUT)
+            {
+
+            }
+        }
+
+        if (flight_mode == DroneFlightMode::ARM_MODE)
+        {
+            DroneReceiver reset_params = {
+                .roll        = MIDDLE_VALUE,
+                .pitch       = MIDDLE_VALUE,
+                .throttle    = DISABLE_VALUE,
+                .yaw         = MIDDLE_VALUE,
+                .flight_mode = DISABLE_VALUE,
+                .aux_2       = MIDDLE_VALUE,
+                .arm_mode    = DISABLE_VALUE
             };
-            Msp::send_command<Msp::MspReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
+            Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &reset_params);
+        }
+
+        if (flight_mode == DroneFlightMode::HOVER_MODE)
+        {
+            uint16_t new_throttle = throttle + DISABLE_VALUE;
+
+            DroneReceiver params = {
+                .roll        = MIDDLE_VALUE,
+                .pitch       = MIDDLE_VALUE,
+                .throttle    = new_throttle,
+                .yaw         = MIDDLE_VALUE,
+                .flight_mode = DISABLE_VALUE,
+                .aux_2       = MIDDLE_VALUE,
+                .arm_mode    = ENABLE_VALUE
+            };
+            Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
 
             throttle = (throttle + 1) % 200;
         }
-
-        // If the drone loses RX and it's still armed then it will go into failsafe mode
-        // To get out of failsafe, we need to reset the throttle and disable the arming switch
-        // for 2 seconds before trying to do anything else
-
-        in_rx_recovery =
-            (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
-            || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE);
 
         auto t1 = std::chrono::high_resolution_clock::now();
         auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -82,6 +114,20 @@ void DroneController::run()
 
         t0 = t1;
 
-        CALL(Sleep, usleep, 200);
+        CALL(Sleep, usleep, LOOP_SLEEP_TIME);
     }
+}
+
+// This method is being run from the inference thread so we don't need PID to be thread safe,
+// only need dx and dy to be thread safe.
+void DroneController::update_pid(float dt, float center_x, float center_y, float actual_x, float actual_y)
+{
+    if (flight_mode != DroneFlightMode::ARM_MODE)
+    {
+        // TODO: Wait a couple seconds first
+
+        dy = pid_y.calculate(dt, center_y, actual_y);
+    }
+
+    std::cout << "Adj: " << cv::Point2f(dx, dy) << std::endl;
 }

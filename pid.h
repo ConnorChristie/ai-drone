@@ -1,5 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <iostream>
+#include <cmath>
+
 class PID
 {
 public:
@@ -20,6 +24,7 @@ private:
     float _Kp;
     float _Kd;
     float _Ki;
+
     float _pre_error;
     float _integral;
 };

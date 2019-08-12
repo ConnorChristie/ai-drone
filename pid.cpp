@@ -1,5 +1,3 @@
-#include <iostream>
-#include <cmath>
 #include "pid.h"
 
 using namespace std;
