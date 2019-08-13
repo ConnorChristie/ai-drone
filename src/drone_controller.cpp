@@ -53,7 +53,7 @@ void DroneController::run()
 
         while (true)
         {
-            Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(&*serial, Msp::MspCommand::STATUS_EX);
+            Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
             auto arming_flags = rcv->arming_flags;
 
             // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
@@ -141,7 +141,7 @@ void DroneController::run()
                 .aux_2       = MIDDLE_VALUE,
                 .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
             };
-            Msp::send_command<DroneReceiver>(&*serial, Msp::MspCommand::SET_RAW_RC, &params);
+            Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
 
             auto t1 = std::chrono::high_resolution_clock::now();
             auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -176,7 +176,7 @@ void DroneController::send_throttle_command(uint16_t throttle)
         .aux_2       = MIDDLE_VALUE,
         .arm_mode    = ENABLE_VALUE
     };
-    Msp::send_command<DroneReceiver>(&*serial, Msp::MspCommand::SET_RAW_RC, &params);
+    Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
 }
 
 // This method is being run from the inference thread so we don't need PID to be thread safe,

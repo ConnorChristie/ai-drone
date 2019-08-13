@@ -529,7 +529,7 @@ int main(int argc, char *argv[])
 
         DroneController drone_controller(FLAGS_msp_port_name);
 
-        std::thread drone_controller_thread(&DroneController::run, drone_controller);
+        std::thread drone_controller_thread(&DroneController::run, &drone_controller);
         std::thread detection_runner_thread(detection_runner, &drone_controller);
 
         drone_controller_thread.join();
