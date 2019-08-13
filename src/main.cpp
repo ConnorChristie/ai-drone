@@ -58,7 +58,7 @@ bool ParseAndCheckCommandLine(int argc, char *argv[])
     }
 
     if (FLAGS_display_resolution.find("x") == std::string::npos) {
-        throw std::logic_error("Incorrect format of -displayresolution parameter. Correct format is  \"WIDTH x HEIGHT\". For example \"1920x1080\"");
+        throw std::logic_error("Incorrect format of -displayresolution parameter. Correct format is  \"width x height\". For example \"1920x1080\"");
     }
 
     return true;
@@ -102,9 +102,6 @@ struct Detection
     float size;
 };
 
-const size_t WIDTH = 480;
-const size_t HEIGHT = 270;
-
 void detection_runner(DroneController* drone_controller)
 {
     try
@@ -116,6 +113,9 @@ void detection_runner(DroneController* drone_controller)
         {
             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
         }
+
+        const size_t width = (size_t)cap.get(cv::CAP_PROP_FRAME_WIDTH);
+        const size_t height = (size_t)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 
         cv::Mat curr_frame;  cap >> curr_frame;
         cv::Mat next_frame;
@@ -269,6 +269,8 @@ void detection_runner(DroneController* drone_controller)
         auto wallclock = std::chrono::high_resolution_clock::now();
         double ocv_decode_time = 0, ocv_render_time = 0;
 
+        drone_controller->init(width, height);
+
         slog::info << "To close the application, press 'CTRL+C' here or switch to the output window and press ESC key" << slog::endl;
         slog::info << "To switch between sync/async modes, press TAB key in the output window" << slog::endl;
         while (true)
@@ -365,10 +367,10 @@ void detection_runner(DroneController* drone_controller)
                     auto confidence = detection_values[i * objectSize + 2];
                     if (confidence <= FLAGS_t) continue;
 
-                    auto xmin = detection_values[i * objectSize + 3] * WIDTH;
-                    auto ymin = detection_values[i * objectSize + 4] * HEIGHT;
-                    auto xmax = detection_values[i * objectSize + 5] * WIDTH;
-                    auto ymax = detection_values[i * objectSize + 6] * HEIGHT;
+                    auto xmin = detection_values[i * objectSize + 3] * width;
+                    auto ymin = detection_values[i * objectSize + 4] * height;
+                    auto xmax = detection_values[i * objectSize + 5] * width;
+                    auto ymax = detection_values[i * objectSize + 6] * height;
 
                     // TODO: Not sure how this can be negative? But sometimes it is...
                     if (xmin < 0 || ymin < 0) continue;
@@ -525,8 +527,7 @@ int main(int argc, char *argv[])
             return -1;
         }
 
-        DroneController drone_controller(FLAGS_msp_port_name, WIDTH, HEIGHT);
-        drone_controller.init();
+        DroneController drone_controller(FLAGS_msp_port_name);
 
         std::thread drone_controller_thread(&DroneController::run, drone_controller);
         std::thread detection_runner_thread(detection_runner, &drone_controller);

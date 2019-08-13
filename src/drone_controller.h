@@ -18,10 +18,11 @@ typedef duration<double, std::ratio<1, 1000>> ms;
 
 enum DroneFlightMode : uint32_t
 {
-    RECOVERY_MODE = (1 << 0),
-    FLY_UP_MODE   = (1 << 1),
-    HOVER_MODE    = (1 << 2),
-    FOLLOW_MODE   = (1 << 3)
+    PENDING_INIT  = (1 << 0),
+    RECOVERY_MODE = (1 << 1),
+    FLY_UP_MODE   = (1 << 2),
+    HOVER_MODE    = (1 << 3),
+    FOLLOW_MODE   = (1 << 4)
 };
 
 const uint LOOP_SLEEP_TIME = 2;
@@ -57,15 +58,15 @@ struct DroneReceiver
 class DroneController
 {
 public:
-    DroneController(std::string msp_port_name, size_t cam_width, size_t cam_height);
+    DroneController(std::string msp_port_name);
 
-    void init();
+    void init(size_t cam_width, size_t cam_height);
     void run();
 
     void update_pid(double dt, double actual_x, double actual_y, float size);
 
 private:
-    ceSerial* serial;
+    shared_ptr<ceSerial> serial;
     std::string msp_port_name;
 
     size_t cam_width;
