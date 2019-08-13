@@ -12,19 +12,19 @@ public:
     // Kd -  derivative gain
     // max - maximum value of manipulated variable
     // min - minimum value of manipulated variable
-    PID(float min, float max, float Kp, float Kd, float Ki);
+    PID(double min, double max, double Kp, double Kd, double Ki);
 
     // Returns the manipulated variable given a setpoint and current process value
-    float calculate(float dt, float setpoint, float pv);
+    double calculate(double dt, double setpoint, double pv);
     ~PID();
 
 private:
-    float _max;
-    float _min;
-    float _Kp;
-    float _Kd;
-    float _Ki;
+    double _max;
+    double _min;
+    double _Kp;
+    double _Kd;
+    double _Ki;
 
-    float _pre_error;
-    float _integral;
+    double _pre_error;
+    double _integral;
 };

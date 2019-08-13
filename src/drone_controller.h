@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <thread>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -17,17 +18,18 @@ typedef duration<double, std::ratio<1, 1000>> ms;
 
 enum DroneFlightMode : uint32_t
 {
-    ARM_MODE = (1 << 0),
-    HOVER_MODE = (1 << 1),
-    FOLLOW_MODE = (1 << 2)
+    RECOVERY_MODE = (1 << 0),
+    FLY_UP_MODE   = (1 << 1),
+    HOVER_MODE    = (1 << 2),
+    FOLLOW_MODE   = (1 << 3)
 };
 
-const uint LOOP_SLEEP_TIME = 200;
-const uint HOVER_TIMEOUT = 3000;
+const uint LOOP_SLEEP_TIME = 2;
+const uint HOVER_TIMEOUT   = 5000;
 
 const uint16_t DISABLE_VALUE = 1000;
-const uint16_t ENABLE_VALUE = 2000;
-const uint16_t MIDDLE_VALUE = 1500;
+const uint16_t ENABLE_VALUE  = 2000;
+const uint16_t MIDDLE_VALUE  = 1500;
 
 struct DroneReceiver
 {
@@ -55,14 +57,19 @@ struct DroneReceiver
 class DroneController
 {
 public:
-    DroneController(std::string msp_port_name);
+    DroneController(std::string msp_port_name, size_t cam_width, size_t cam_height);
 
+    void init();
     void run();
 
-    void update_pid(float dt, float center_x, float center_y, float actual_x, float actual_y);
+    void update_pid(double dt, double actual_x, double actual_y, float size);
 
 private:
+    ceSerial* serial;
     std::string msp_port_name;
+
+    size_t cam_width;
+    size_t cam_height;
 
     static std::atomic<DroneFlightMode> flight_mode;
 
@@ -71,4 +78,7 @@ private:
 
     static std::atomic<float> dx;
     static std::atomic<float> dy;
+    static std::atomic<bool> has_detection;
+
+    void send_throttle_command(uint16_t throttle);
 };

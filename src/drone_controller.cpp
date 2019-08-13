@@ -1,30 +1,52 @@
 #include "drone_controller.h"
 
-DroneController::DroneController(std::string msp_port_name) :
+DroneController::DroneController(std::string msp_port_name, size_t cam_width, size_t cam_height) :
     msp_port_name(msp_port_name),
+
+    cam_width(cam_width),
+    cam_height(cam_height),
+
     pid_x(-100, 100, 0.1, 0.01, 0.5),
     pid_y(-100, 100, 0.1, 0.01, 0.5)
 { }
 
-std::atomic<DroneFlightMode> DroneController::flight_mode{ DroneFlightMode::ARM_MODE };
-
-std::atomic<float> DroneController::dx{ 0 };
-std::atomic<float> DroneController::dy{ 0 };
-
-void DroneController::run()
+void DroneController::init()
 {
-    slog::info << "Start drone controller" << slog::endl;
+    slog::info << "Starting drone controller" << slog::endl;
 
-    ceSerial* serial = new ceSerial(msp_port_name, 115200, 8, 'N', 1);
+    serial = new ceSerial(msp_port_name, 115200, 8, 'N', 1);
 
     auto serial_code = serial->Open();
     if (serial_code != 0)
     {
-        printf("Unable to open serial port: %li\n", serial_code);
-        return;
+        throw std::logic_error("Unable to open serial port");
     }
+}
 
-    uint16_t throttle = 0;
+std::atomic<DroneFlightMode> DroneController::flight_mode{ DroneFlightMode::RECOVERY_MODE };
+
+std::atomic<float> DroneController::dx{ 0 };
+std::atomic<float> DroneController::dy{ 0 };
+std::atomic<bool> DroneController::has_detection{ false };
+
+void DroneController::send_throttle_command(uint16_t throttle)
+{
+    DroneReceiver params = {
+        .roll        = MIDDLE_VALUE,
+        .pitch       = MIDDLE_VALUE,
+        .throttle    = throttle,
+        .yaw         = MIDDLE_VALUE,
+        .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
+        .aux_2       = MIDDLE_VALUE,
+        .arm_mode    = ENABLE_VALUE
+    };
+    Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
+}
+
+void DroneController::run()
+{
+    bool armed = false;
+    double throttle = DISABLE_VALUE;
 
     auto t0 = high_resolution_clock::now();
 
@@ -33,7 +55,7 @@ void DroneController::run()
     // 2. Hover up until y is good
     // 3. Begin follow procedure
 
-    high_resolution_clock::time_point hover_begin;
+    high_resolution_clock::time_point fly_up_begin;
 
     while (true)
     {
@@ -54,58 +76,77 @@ void DroneController::run()
             // To get out of failsafe, we need to reset the throttle and disable the arming switch
             // for 2 seconds before trying to do anything else
 
-            flight_mode = DroneFlightMode::ARM_MODE;
+            flight_mode = DroneFlightMode::RECOVERY_MODE;
         }
-        else if (flight_mode == DroneFlightMode::ARM_MODE)
+        else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
         {
-            flight_mode = DroneFlightMode::HOVER_MODE;
-            hover_begin = high_resolution_clock::now();
+            flight_mode = DroneFlightMode::FLY_UP_MODE;
+            fly_up_begin = high_resolution_clock::now();
         }
-        else if (flight_mode == DroneFlightMode::HOVER_MODE)
+
+        // --------------------------------------------
+
+        if (flight_mode == DroneFlightMode::FLY_UP_MODE)
         {
-            auto t1 = high_resolution_clock::now();
-            auto time_diff = duration_cast<ms>(t1 - hover_begin).count();
+            double ms_of_detection = 0;
 
-            // 1. Increase throttle until we reach correct Y height (follow PID)
-            // 2. Timeout after a couple of seconds then decrease throttle
+            auto t_init = high_resolution_clock::now();
+            auto t0 = high_resolution_clock::now();
 
-            if (time_diff >= HOVER_TIMEOUT)
+            while (true)
             {
+                auto now = high_resolution_clock::now();
+                auto dt = duration_cast<ms>(now - t0).count();
+                auto elapsed = duration_cast<ms>(now - t_init).count();
 
+                std::cout << "\nElapsed time: " << elapsed << std::endl;
+
+                t0 = now;
+
+                // If we have 10ms of constant detection, switch to hover mode
+                if (elapsed >= HOVER_TIMEOUT || ms_of_detection >= 10)
+                    break;
+
+                if (has_detection)
+                    ms_of_detection += dt;
+                else
+                    ms_of_detection = 0;
+
+                // Otherwise, linearly increase throttle to max (1050)
+                throttle = DISABLE_VALUE + min(elapsed / 4.0, 50.0);
+                send_throttle_command((uint16_t)round(throttle));
+
+                std::this_thread::sleep_for(milliseconds(1));
+            }
+
+            flight_mode = DroneFlightMode::HOVER_MODE;
+        }
+
+        switch (flight_mode)
+        {
+            case DroneFlightMode::RECOVERY_MODE:
+            {
+                armed = false;
+                throttle = DISABLE_VALUE;
+                break;
+            }
+            case DroneFlightMode::HOVER_MODE:
+            {
+                armed = false;
+                break;
             }
         }
 
-        if (flight_mode == DroneFlightMode::ARM_MODE)
-        {
-            DroneReceiver reset_params = {
-                .roll        = MIDDLE_VALUE,
-                .pitch       = MIDDLE_VALUE,
-                .throttle    = DISABLE_VALUE,
-                .yaw         = MIDDLE_VALUE,
-                .flight_mode = DISABLE_VALUE,
-                .aux_2       = MIDDLE_VALUE,
-                .arm_mode    = DISABLE_VALUE
-            };
-            Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &reset_params);
-        }
-
-        if (flight_mode == DroneFlightMode::HOVER_MODE)
-        {
-            uint16_t new_throttle = throttle + DISABLE_VALUE;
-
-            DroneReceiver params = {
-                .roll        = MIDDLE_VALUE,
-                .pitch       = MIDDLE_VALUE,
-                .throttle    = new_throttle,
-                .yaw         = MIDDLE_VALUE,
-                .flight_mode = DISABLE_VALUE,
-                .aux_2       = MIDDLE_VALUE,
-                .arm_mode    = ENABLE_VALUE
-            };
-            Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
-
-            throttle = (throttle + 1) % 200;
-        }
+        DroneReceiver params = {
+            .roll        = MIDDLE_VALUE,
+            .pitch       = MIDDLE_VALUE,
+            .throttle    = ((uint16_t)round(throttle)),
+            .yaw         = MIDDLE_VALUE,
+            .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
+            .aux_2       = MIDDLE_VALUE,
+            .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
+        };
+        Msp::send_command<DroneReceiver>(serial, Msp::MspCommand::SET_RAW_RC, &params);
 
         auto t1 = std::chrono::high_resolution_clock::now();
         auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -114,19 +155,26 @@ void DroneController::run()
 
         t0 = t1;
 
-        CALL(Sleep, usleep, LOOP_SLEEP_TIME);
+        std::this_thread::sleep_for(milliseconds(LOOP_SLEEP_TIME));
     }
 }
 
 // This method is being run from the inference thread so we don't need PID to be thread safe,
 // only need dx and dy to be thread safe.
-void DroneController::update_pid(float dt, float center_x, float center_y, float actual_x, float actual_y)
+void DroneController::update_pid(double dt, double actual_x, double actual_y, float size)
 {
-    if (flight_mode != DroneFlightMode::ARM_MODE)
+    has_detection = actual_x != -1 && actual_y != -1 && size != -1;
+
+    if (has_detection && (flight_mode & (DroneFlightMode::HOVER_MODE | DroneFlightMode::FOLLOW_MODE)))
     {
         // TODO: Wait a couple seconds first
 
-        dy = pid_y.calculate(dt, center_y, actual_y);
+        dy = (float)pid_y.calculate(dt, cam_height / 2.0, actual_y);
+
+        if (flight_mode & DroneFlightMode::FOLLOW_MODE)
+        {
+            // DX
+        }
     }
 
     std::cout << "Adj: " << cv::Point2f(dx, dy) << std::endl;

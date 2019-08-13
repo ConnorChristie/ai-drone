@@ -2,7 +2,7 @@
 
 using namespace std;
 
-PID::PID(float min, float max, float Kp, float Kd, float Ki) :
+PID::PID(double min, double max, double Kp, double Kd, double Ki) :
     _max(max),
     _min(min),
     _Kp(Kp),
@@ -13,24 +13,24 @@ PID::PID(float min, float max, float Kp, float Kd, float Ki) :
 {
 }
 
-float PID::calculate(float dt, float setpoint, float pv)
+double PID::calculate(double dt, double setpoint, double pv)
 {
     // Calculate error
-    float error = setpoint - pv;
+    auto error = setpoint - pv;
 
     // Proportional term
-    float Pout = _Kp * error;
+    auto Pout = _Kp * error;
 
     // Integral term
     _integral += error * dt;
-    float Iout = _Ki * _integral;
+    auto Iout = _Ki * _integral;
 
     // Derivative term
-    float derivative = (error - _pre_error) / dt;
-    float Dout = _Kd * derivative;
+    auto derivative = (error - _pre_error) / dt;
+    auto Dout = _Kd * derivative;
 
     // Calculate total output
-    float output = Pout + Iout + Dout;
+    auto output = Pout + Iout + Dout;
 
     // Restrict to max/min
     if (output > _max)

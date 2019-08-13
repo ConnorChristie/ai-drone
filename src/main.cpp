@@ -58,7 +58,7 @@ bool ParseAndCheckCommandLine(int argc, char *argv[])
     }
 
     if (FLAGS_display_resolution.find("x") == std::string::npos) {
-        throw std::logic_error("Incorrect format of -displayresolution parameter. Correct format is  \"width x height\". For example \"1920x1080\"");
+        throw std::logic_error("Incorrect format of -displayresolution parameter. Correct format is  \"WIDTH x HEIGHT\". For example \"1920x1080\"");
     }
 
     return true;
@@ -102,6 +102,9 @@ struct Detection
     float size;
 };
 
+const size_t WIDTH = 480;
+const size_t HEIGHT = 270;
+
 void detection_runner(DroneController* drone_controller)
 {
     try
@@ -113,9 +116,6 @@ void detection_runner(DroneController* drone_controller)
         {
             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
         }
-
-        const size_t width = (size_t)cap.get(cv::CAP_PROP_FRAME_WIDTH);
-        const size_t height = (size_t)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 
         cv::Mat curr_frame;  cap >> curr_frame;
         cv::Mat next_frame;
@@ -262,7 +262,7 @@ void detection_runner(DroneController* drone_controller)
         bool isModeChanged = false;  // set to TRUE when execution mode is changed (SYNC<->ASYNC)
 
         bool isTrackingCar = false;
-        int iteration = -1;
+        int relativeIteration = -1;
 
         typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
         auto total_t0 = std::chrono::high_resolution_clock::now();
@@ -365,10 +365,10 @@ void detection_runner(DroneController* drone_controller)
                     auto confidence = detection_values[i * objectSize + 2];
                     if (confidence <= FLAGS_t) continue;
 
-                    auto xmin = detection_values[i * objectSize + 3] * width;
-                    auto ymin = detection_values[i * objectSize + 4] * height;
-                    auto xmax = detection_values[i * objectSize + 5] * width;
-                    auto ymax = detection_values[i * objectSize + 6] * height;
+                    auto xmin = detection_values[i * objectSize + 3] * WIDTH;
+                    auto ymin = detection_values[i * objectSize + 4] * HEIGHT;
+                    auto xmax = detection_values[i * objectSize + 5] * WIDTH;
+                    auto ymax = detection_values[i * objectSize + 6] * HEIGHT;
 
                     // TODO: Not sure how this can be negative? But sometimes it is...
                     if (xmin < 0 || ymin < 0) continue;
@@ -414,11 +414,11 @@ void detection_runner(DroneController* drone_controller)
                 auto xmax = detection.xmax;
                 auto ymax = detection.ymax;
 
-                iteration = (iteration + 1) % 10;
+                relativeIteration = (relativeIteration + 1) % 10;
 
                 // Only check the vehicle attributes every once in a while
                 // Also re-check sooner if we aren't currently tracking a car
-                if (iteration == 0 || !isTrackingCar)
+                if (relativeIteration == 0 || !isTrackingCar)
                 {
                     cv::Mat croppedImage = curr_frame(cv::Rect2f(xmin, ymin, xmax - xmin, ymax - ymin));
                     frameToBlob(croppedImage, attr_infer_request, "input");
@@ -438,6 +438,8 @@ void detection_runner(DroneController* drone_controller)
                     isTrackingCar = (color_idx == 3 && type_idx == 0);
                 }
 
+                auto dt = wall.count() / 1000;
+
                 if (isTrackingCar)
                 {
                     cv::Scalar outline_color(23, 23, 255);
@@ -448,9 +450,11 @@ void detection_runner(DroneController* drone_controller)
 
                     cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
 
-                    auto dt = wall.count() / 1000;
-
-                    drone_controller->update_pid(dt, width / 2, height / 2, center.x, center.y);
+                    drone_controller->update_pid(dt, center.x, center.y, detection.size);
+                }
+                else
+                {
+                    drone_controller->update_pid(dt, -1, -1, -1);
                 }
             }
 
@@ -521,7 +525,8 @@ int main(int argc, char *argv[])
             return -1;
         }
 
-        DroneController drone_controller(FLAGS_msp_port_name);
+        DroneController drone_controller(FLAGS_msp_port_name, WIDTH, HEIGHT);
+        drone_controller.init();
 
         std::thread drone_controller_thread(&DroneController::run, drone_controller);
         std::thread detection_runner_thread(detection_runner, &drone_controller);
