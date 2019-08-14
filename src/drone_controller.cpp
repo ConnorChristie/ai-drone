@@ -53,104 +53,123 @@ void DroneController::run()
 
         while (true)
         {
-            Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
-            auto arming_flags = rcv->arming_flags;
-
-            // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
-
-            // for (unsigned int i = 0; i < 22; i++)
-            // {
-            //     if (arming_flags & (1u << i))
-            //         slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
-            // }
-
-            if ((arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
-                || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE))
+            try
             {
-                // If the drone loses RX and it's still armed then it will go into failsafe mode
-                // To get out of failsafe, we need to reset the throttle and disable the arming switch
-                // for 2 seconds before trying to do anything else
+                Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
+                auto arming_flags = rcv->arming_flags;
 
-                flight_mode = DroneFlightMode::RECOVERY_MODE;
-            }
-            else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
-            {
-                flight_mode = DroneFlightMode::FLY_UP_MODE;
-                fly_up_begin = high_resolution_clock::now();
-            }
+                // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
 
-            // --------------------------------------------
+                // for (unsigned int i = 0; i < 22; i++)
+                // {
+                //     if (arming_flags & (1u << i))
+                //         slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
+                // }
 
-            if (flight_mode == DroneFlightMode::FLY_UP_MODE)
-            {
-                double ms_of_detection = 0;
-
-                auto t_init = high_resolution_clock::now();
-                auto t0 = high_resolution_clock::now();
-
-                while (true)
+                if ((arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
+                    || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE))
                 {
-                    auto now = high_resolution_clock::now();
-                    auto dt = duration_cast<ms>(now - t0).count();
-                    auto elapsed = duration_cast<ms>(now - t_init).count();
+                    // If the drone loses RX and it's still armed then it will go into failsafe mode
+                    // To get out of failsafe, we need to reset the throttle and disable the arming switch
+                    // for 2 seconds before trying to do anything else
 
-                    std::cout << "\nElapsed time: " << elapsed << std::endl;
+                    flight_mode = DroneFlightMode::RECOVERY_MODE;
+                }
+                else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
+                {
+                    flight_mode = DroneFlightMode::FLY_UP_MODE;
+                    fly_up_begin = high_resolution_clock::now();
+                }
 
-                    t0 = now;
+                // --------------------------------------------
 
-                    // If we have 10ms of constant detection, switch to hover mode
-                    if (elapsed >= HOVER_TIMEOUT || ms_of_detection >= 10)
+                if (flight_mode == DroneFlightMode::FLY_UP_MODE)
+                {
+                    double ms_of_detection = 0;
+
+                    auto t_init = high_resolution_clock::now();
+                    auto t0 = high_resolution_clock::now();
+
+                    while (true)
+                    {
+                        auto now = high_resolution_clock::now();
+                        auto dt = duration_cast<ms>(now - t0).count();
+                        auto elapsed = duration_cast<ms>(now - t_init).count();
+
+                        t0 = now;
+
+                        if (elapsed >= HOVER_TIMEOUT)
+                        {
+                            slog::info << "Couldn't find any vehicle, transitioning to hover mode." << slog::endl;
+                            break;
+                        }
+
+                        if (has_detection)
+                            ms_of_detection += dt;
+                        else
+                            ms_of_detection = 0;
+
+                        if (ms_of_detection >= 10)
+                        {
+                            // If we have 10ms of constant detection, switch to hover mode
+                            slog::info << "Vehicle detected during fly up, transitioning to hover mode." << slog::endl;
+                            break;
+                        }
+
+                        // Otherwise, increase throttle to max (1050)
+                        throttle = DISABLE_VALUE + (50 * sin((elapsed / HOVER_TIMEOUT) * M_PI_2));
+                        send_throttle_command((uint16_t)round(throttle));
+
+                        // This results in a dt of ~10ms
+                        std::this_thread::sleep_for(milliseconds(1));
+                    }
+
+                    flight_mode = DroneFlightMode::HOVER_MODE;
+                }
+
+                switch (flight_mode)
+                {
+                    case DroneFlightMode::RECOVERY_MODE:
+                    {
+                        armed = false;
+                        throttle = DISABLE_VALUE;
                         break;
-
-                    if (has_detection)
-                        ms_of_detection += dt;
-                    else
-                        ms_of_detection = 0;
-
-                    // Otherwise, linearly increase throttle to max (1050)
-                    throttle = DISABLE_VALUE + min(elapsed / 4.0, 50.0);
-                    send_throttle_command((uint16_t)round(throttle));
-
-                    std::this_thread::sleep_for(milliseconds(1));
+                    }
+                    case DroneFlightMode::HOVER_MODE:
+                    {
+                        armed = false;
+                        break;
+                    }
                 }
 
-                flight_mode = DroneFlightMode::HOVER_MODE;
-            }
+                DroneReceiver params = {
+                    .roll        = MIDDLE_VALUE,
+                    .pitch       = MIDDLE_VALUE,
+                    .throttle    = ((uint16_t)round(throttle)),
+                    .yaw         = MIDDLE_VALUE,
+                    .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
+                    .aux_2       = MIDDLE_VALUE,
+                    .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
+                };
+                Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
 
-            switch (flight_mode)
+                auto t1 = std::chrono::high_resolution_clock::now();
+                auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
+
+                //std::cout << "\nCommand time: " << time_diff << std::endl;
+
+                t0 = t1;
+
+                std::this_thread::sleep_for(milliseconds(LOOP_SLEEP_TIME));
+            }
+            catch (const std::exception& error)
             {
-                case DroneFlightMode::RECOVERY_MODE:
-                {
-                    armed = false;
-                    throttle = DISABLE_VALUE;
-                    break;
-                }
-                case DroneFlightMode::HOVER_MODE:
-                {
-                    armed = false;
-                    break;
-                }
+                slog::err << error.what() << slog::endl;
             }
-
-            DroneReceiver params = {
-                .roll        = MIDDLE_VALUE,
-                .pitch       = MIDDLE_VALUE,
-                .throttle    = ((uint16_t)round(throttle)),
-                .yaw         = MIDDLE_VALUE,
-                .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
-                .aux_2       = MIDDLE_VALUE,
-                .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
-            };
-            Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
-
-            auto t1 = std::chrono::high_resolution_clock::now();
-            auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
-
-            //std::cout << "\nCommand time: " << time_diff << std::endl;
-
-            t0 = t1;
-
-            std::this_thread::sleep_for(milliseconds(LOOP_SLEEP_TIME));
+            catch (...)
+            {
+                slog::err << "Unknown/internal exception happened." << slog::endl;
+            }
         }
     }
     catch (const std::exception& error)

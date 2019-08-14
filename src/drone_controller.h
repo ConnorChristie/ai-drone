@@ -1,8 +1,11 @@
 #pragma once
 
+#define _USE_MATH_DEFINES
+
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <cmath>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -26,7 +29,7 @@ enum DroneFlightMode : uint32_t
 };
 
 const uint LOOP_SLEEP_TIME = 2;
-const uint HOVER_TIMEOUT   = 5000;
+const uint HOVER_TIMEOUT   = 10000;
 
 const uint16_t DISABLE_VALUE = 1000;
 const uint16_t ENABLE_VALUE  = 2000;
@@ -69,8 +72,8 @@ private:
     shared_ptr<ceSerial> serial;
     std::string msp_port_name;
 
-    size_t cam_width;
-    size_t cam_height;
+    size_t cam_width = 0;
+    size_t cam_height = 0;
 
     static std::atomic<DroneFlightMode> flight_mode;
 

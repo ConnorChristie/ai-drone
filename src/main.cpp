@@ -402,65 +402,65 @@ void detection_runner(DroneController* drone_controller)
                 {
                     // Lost track of the car
                     slog::warn << "No vehicles found this frame, did we lose track of it?" << slog::endl;
-
-                    continue;
-                }
-
-                auto biggest_vehicle_idx = std::max_element(detections.begin(), detections.end(),
-                    [](Detection const& lhs, Detection const& rhs) { return lhs.size < rhs.size; }) - detections.begin();
-
-                Detection detection = detections[biggest_vehicle_idx];
-
-                auto xmin = detection.xmin;
-                auto ymin = detection.ymin;
-                auto xmax = detection.xmax;
-                auto ymax = detection.ymax;
-
-                relativeIteration = (relativeIteration + 1) % 10;
-
-                // Only check the vehicle attributes every once in a while
-                // Also re-check sooner if we aren't currently tracking a car
-                if (relativeIteration == 0 || !isTrackingCar)
-                {
-                    cv::Mat croppedImage = curr_frame(cv::Rect2f(xmin, ymin, xmax - xmin, ymax - ymin));
-                    frameToBlob(croppedImage, attr_infer_request, "input");
-
-                    attr_infer_request->StartAsync();
-
-                    // Wait until the result is ready. This is blocking and will cause the thread to wait...
-                    while (attr_infer_request->Wait(IInferRequest::WaitMode::RESULT_READY) != OK) {}
-
-                    const float* color_detections = attr_infer_request->GetBlob("color")->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
-                    const float* type_detections = attr_infer_request->GetBlob("type")->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
-
-                    auto color_idx = std::max_element(color_detections, color_detections + 7) - color_detections;
-                    auto type_idx = std::max_element(type_detections, type_detections + 4) - type_detections;
-
-                    // COLOR: Red, TYPE: Car
-                    isTrackingCar = (color_idx == 3 && type_idx == 0);
-                }
-
-                auto dt = wall.count() / 1000;
-
-                if (isTrackingCar)
-                {
-                    cv::Scalar outline_color(23, 23, 255);
-                    cv::rectangle(curr_frame, cv::Point2f(xmin, ymin), cv::Point2f(xmax, ymax), outline_color);
-
-                    cv::Point2f center((xmin + xmax) / 2, (ymin + ymax) / 2);
-                    cv::Scalar center_color(0, 0, 0);
-
-                    cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
-
-                    drone_controller->update_pid(dt, center.x, center.y, detection.size);
                 }
                 else
                 {
-                    drone_controller->update_pid(dt, -1, -1, -1);
+                    auto biggest_vehicle_idx = std::max_element(detections.begin(), detections.end(),
+                        [](Detection const& lhs, Detection const& rhs) { return lhs.size < rhs.size; }) - detections.begin();
+
+                    Detection detection = detections[biggest_vehicle_idx];
+
+                    auto xmin = detection.xmin;
+                    auto ymin = detection.ymin;
+                    auto xmax = detection.xmax;
+                    auto ymax = detection.ymax;
+
+                    relativeIteration = (relativeIteration + 1) % 10;
+
+                    // Only check the vehicle attributes every once in a while
+                    // Also re-check sooner if we aren't currently tracking a car
+                    if (relativeIteration == 0 || !isTrackingCar)
+                    {
+                        cv::Mat croppedImage = curr_frame(cv::Rect2f(xmin, ymin, xmax - xmin, ymax - ymin));
+                        frameToBlob(croppedImage, attr_infer_request, "input");
+
+                        attr_infer_request->StartAsync();
+
+                        // Wait until the result is ready. This is blocking and will cause the thread to wait...
+                        while (attr_infer_request->Wait(IInferRequest::WaitMode::RESULT_READY) != OK) {}
+
+                        const float* color_detections = attr_infer_request->GetBlob("color")->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+                        const float* type_detections = attr_infer_request->GetBlob("type")->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+
+                        auto color_idx = std::max_element(color_detections, color_detections + 7) - color_detections;
+                        auto type_idx = std::max_element(type_detections, type_detections + 4) - type_detections;
+
+                        // COLOR: Red, TYPE: Car
+                        isTrackingCar = (color_idx == 3 && type_idx == 0);
+                    }
+
+                    auto dt = wall.count() / 1000;
+
+                    if (isTrackingCar)
+                    {
+                        cv::Scalar outline_color(23, 23, 255);
+                        cv::rectangle(curr_frame, cv::Point2f(xmin, ymin), cv::Point2f(xmax, ymax), outline_color);
+
+                        cv::Point2f center((xmin + xmax) / 2, (ymin + ymax) / 2);
+                        cv::Scalar center_color(0, 0, 0);
+
+                        cv::rectangle(curr_frame, cv::Point2f(center.x - 1, center.y - 1), cv::Point2f(center.x + 1, center.y + 1), center_color, 2);
+
+                        drone_controller->update_pid(dt, center.x, center.y, detection.size);
+                    }
+                    else
+                    {
+                        drone_controller->update_pid(dt, -1, -1, -1);
+                    }
                 }
             }
 
-            //cv::imshow("Detection results", curr_frame);
+            cv::imshow("Detection results", curr_frame);
 
             t1 = std::chrono::high_resolution_clock::now();
             ocv_render_time = std::chrono::duration_cast<ms>(t1 - t0).count();
