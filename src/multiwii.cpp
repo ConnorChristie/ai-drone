@@ -35,6 +35,23 @@ void print_bytes(char* data, size_t length)
     printf("\n");
 }
 
+constexpr int CLEAR_AMOUNT = 128;
+
+void drain_read_buffer(ceSerial* serial)
+{
+    char* buf = new char[CLEAR_AMOUNT];
+    auto drained_amount = serial->Read(buf, CLEAR_AMOUNT);
+    delete[] buf;
+
+    slog::info << "Drained " << drained_amount << " bytes from read buffer." << slog::endl;
+
+    // If we filled this buffer, there might be more to drain
+    if (drained_amount == CLEAR_AMOUNT)
+    {
+        drain_read_buffer(serial);
+    }
+}
+
 char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, uint8_t param_size)
 {
     uint8_t send_param_size = param_data != NULL ? param_size : 0;
@@ -108,6 +125,7 @@ char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, u
     {
         slog::err << "Error reading " << (int)rcv_size << " only read " << (int)read_length << " (response told us to read " << (int)rcv_request.size << " bytes)" << slog::endl;
         print_bytes(rcv_data, rcv_size);
+        drain_read_buffer(serial);
         return NULL;
     }
 
@@ -116,6 +134,7 @@ char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, u
     {
         slog::err << "Was expecting a response to our request but received different" << slog::endl;
         print_bytes(rcv_data, rcv_size);
+        drain_read_buffer(serial);
         return NULL;
     }
 
@@ -123,6 +142,7 @@ char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, u
     {
         slog::err << "Was expecting a response size of " << (int)rcv_param_size << " but received " << (int)rcv_request.size << " instead" << slog::endl;
         print_bytes(rcv_data, rcv_size);
+        drain_read_buffer(serial);
         return NULL;
     }
 

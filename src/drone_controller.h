@@ -28,12 +28,12 @@ enum DroneFlightMode : uint32_t
     FOLLOW_MODE   = (1 << 4)
 };
 
-const uint LOOP_SLEEP_TIME = 2;
-const uint HOVER_TIMEOUT   = 10000;
+constexpr uint LOOP_SLEEP_TIME = 2;
+constexpr uint HOVER_TIMEOUT   = 10000;
 
-const uint16_t DISABLE_VALUE = 1000;
-const uint16_t ENABLE_VALUE  = 2000;
-const uint16_t MIDDLE_VALUE  = 1500;
+constexpr uint16_t MIDDLE_VALUE  = 1500;
+constexpr uint16_t DISABLE_VALUE = MIDDLE_VALUE - 512;
+constexpr uint16_t ENABLE_VALUE  = MIDDLE_VALUE + 512;
 
 struct DroneReceiver
 {
@@ -84,5 +84,6 @@ private:
     static std::atomic<float> dy;
     static std::atomic<bool> has_detection;
 
+    void run_fly_up_procedure();
     void send_throttle_command(uint16_t throttle);
 };

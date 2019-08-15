@@ -30,6 +30,61 @@ void DroneController::init(size_t cam_width, size_t cam_height)
     flight_mode = DroneFlightMode::RECOVERY_MODE;
 }
 
+void DroneController::run_fly_up_procedure()
+{
+    // logarithmic curve coefs
+    // gets to 350 at t = 4.6s
+    const double ACCEL_FACTOR = 350.0;
+    const double DIVISION_FACTOR = 10.0;
+    const double Y_OFFSET = -600.0;
+
+    // determine the x offset by solving for x-intercept
+    const double X_OFFSET = pow(10, -Y_OFFSET / ACCEL_FACTOR) * DIVISION_FACTOR;
+
+    double ms_of_detection = 0;
+
+    auto t_init = high_resolution_clock::now();
+    auto t0 = high_resolution_clock::now();
+
+    while (true)
+    {
+        auto now = high_resolution_clock::now();
+        auto dt = duration_cast<ms>(now - t0).count();
+        auto elapsed = duration_cast<ms>(now - t_init).count();
+
+        t0 = now;
+
+        if (elapsed >= HOVER_TIMEOUT)
+        {
+            slog::info << "Couldn't find any vehicle, transitioning to hover mode." << slog::endl;
+            break;
+        }
+
+        if (has_detection)
+            ms_of_detection += dt;
+        else
+            ms_of_detection = 0;
+
+        if (ms_of_detection >= 10)
+        {
+            // If we have 10ms of constant detection, switch to hover mode
+            slog::info << "Vehicle detected during fly up, transitioning to hover mode." << slog::endl;
+            break;
+        }
+
+        //throttle = DISABLE_VALUE + (50 * sin((elapsed / HOVER_TIMEOUT) * M_PI_2));
+        auto throttle = ACCEL_FACTOR * log10((elapsed + X_OFFSET) / DIVISION_FACTOR) + Y_OFFSET;
+        slog::info << "Throttle: " << throttle << slog::endl;
+
+        send_throttle_command((uint16_t)round(throttle));
+
+        // This results in a dt of ~10ms
+        std::this_thread::sleep_for(milliseconds(1));
+    }
+
+    flight_mode = DroneFlightMode::HOVER_MODE;
+}
+
 void DroneController::run()
 {
     try
@@ -40,7 +95,7 @@ void DroneController::run()
         }
 
         bool armed = false;
-        double throttle = DISABLE_VALUE;
+        double throttle = 0;
 
         auto t0 = high_resolution_clock::now();
 
@@ -56,6 +111,8 @@ void DroneController::run()
             try
             {
                 Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
+                if (rcv == NULL) continue;
+
                 auto arming_flags = rcv->arming_flags;
 
                 // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
@@ -78,54 +135,11 @@ void DroneController::run()
                 else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
                 {
                     flight_mode = DroneFlightMode::FLY_UP_MODE;
-                    fly_up_begin = high_resolution_clock::now();
+
+                    this->run_fly_up_procedure();
                 }
 
                 // --------------------------------------------
-
-                if (flight_mode == DroneFlightMode::FLY_UP_MODE)
-                {
-                    double ms_of_detection = 0;
-
-                    auto t_init = high_resolution_clock::now();
-                    auto t0 = high_resolution_clock::now();
-
-                    while (true)
-                    {
-                        auto now = high_resolution_clock::now();
-                        auto dt = duration_cast<ms>(now - t0).count();
-                        auto elapsed = duration_cast<ms>(now - t_init).count();
-
-                        t0 = now;
-
-                        if (elapsed >= HOVER_TIMEOUT)
-                        {
-                            slog::info << "Couldn't find any vehicle, transitioning to hover mode." << slog::endl;
-                            break;
-                        }
-
-                        if (has_detection)
-                            ms_of_detection += dt;
-                        else
-                            ms_of_detection = 0;
-
-                        if (ms_of_detection >= 10)
-                        {
-                            // If we have 10ms of constant detection, switch to hover mode
-                            slog::info << "Vehicle detected during fly up, transitioning to hover mode." << slog::endl;
-                            break;
-                        }
-
-                        // Otherwise, increase throttle to max (1050)
-                        throttle = DISABLE_VALUE + (50 * sin((elapsed / HOVER_TIMEOUT) * M_PI_2));
-                        send_throttle_command((uint16_t)round(throttle));
-
-                        // This results in a dt of ~10ms
-                        std::this_thread::sleep_for(milliseconds(1));
-                    }
-
-                    flight_mode = DroneFlightMode::HOVER_MODE;
-                }
 
                 switch (flight_mode)
                 {
@@ -137,7 +151,8 @@ void DroneController::run()
                     }
                     case DroneFlightMode::HOVER_MODE:
                     {
-                        armed = false;
+                        armed = true;
+                        throttle = DISABLE_VALUE + 350;
                         break;
                     }
                 }
@@ -184,12 +199,13 @@ void DroneController::run()
     }
 }
 
+// @throttle - A value between 0 and 1024
 void DroneController::send_throttle_command(uint16_t throttle)
 {
     DroneReceiver params = {
         .roll        = MIDDLE_VALUE,
         .pitch       = MIDDLE_VALUE,
-        .throttle    = throttle,
+        .throttle    = (uint16_t)(DISABLE_VALUE + throttle),
         .yaw         = MIDDLE_VALUE,
         .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
         .aux_2       = MIDDLE_VALUE,
