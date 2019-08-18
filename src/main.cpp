@@ -33,6 +33,9 @@
 #include "pid.h"
 #include "drone_controller.h"
 
+#include "blockingconcurrentqueue.h"
+#include "remote_server.hpp"
+
 using namespace InferenceEngine;
 
 bool ParseAndCheckCommandLine(int argc, char *argv[])
@@ -269,7 +272,7 @@ void detection_runner(DroneController* drone_controller)
         auto wallclock = std::chrono::high_resolution_clock::now();
         double ocv_decode_time = 0, ocv_render_time = 0;
 
-        drone_controller->init(width, height);
+        // drone_controller->init(width, height);
 
         slog::info << "To close the application, press 'CTRL+C' here or switch to the output window and press ESC key" << slog::endl;
         slog::info << "To switch between sync/async modes, press TAB key in the output window" << slog::endl;
@@ -460,7 +463,8 @@ void detection_runner(DroneController* drone_controller)
                 }
             }
 
-            cv::imshow("Detection results", curr_frame);
+            //cv::imshow("Detection results", curr_frame);
+            frame_queue.enqueue(curr_frame);
 
             t1 = std::chrono::high_resolution_clock::now();
             ocv_render_time = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -529,9 +533,11 @@ int main(int argc, char *argv[])
 
         DroneController drone_controller(FLAGS_msp_port_name);
 
+        std::thread web_server(&run_web_server);
         std::thread drone_controller_thread(&DroneController::run, &drone_controller);
         std::thread detection_runner_thread(detection_runner, &drone_controller);
 
+        web_server.join();
         drone_controller_thread.join();
         detection_runner_thread.join();
     }

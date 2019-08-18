@@ -32,14 +32,19 @@ void DroneController::init(size_t cam_width, size_t cam_height)
 
 void DroneController::run_fly_up_procedure()
 {
-    // logarithmic curve coefs
-    // gets to 350 at t = 4.6s
-    const double ACCEL_FACTOR = 350.0;
-    const double DIVISION_FACTOR = 10.0;
-    const double Y_OFFSET = -600.0;
+    // Logarithmic curve coefs
+    // Gets to 350 at t = 1.9s
+    const double ACCEL_FACTOR    = 210;
+    const double DIVISION_FACTOR = 30;
+    const double Y_OFFSET        = -30;
 
-    // determine the x offset by solving for x-intercept
+    // Determine the x offset by solving for x-intercept
     const double X_OFFSET = pow(10, -Y_OFFSET / ACCEL_FACTOR) * DIVISION_FACTOR;
+
+    auto curve_fn = [&](double x) -> double
+    {
+        return ACCEL_FACTOR * log10((x + X_OFFSET) / DIVISION_FACTOR) + Y_OFFSET;
+    };
 
     double ms_of_detection = 0;
 
@@ -72,8 +77,7 @@ void DroneController::run_fly_up_procedure()
             break;
         }
 
-        //throttle = DISABLE_VALUE + (50 * sin((elapsed / HOVER_TIMEOUT) * M_PI_2));
-        auto throttle = ACCEL_FACTOR * log10((elapsed + X_OFFSET) / DIVISION_FACTOR) + Y_OFFSET;
+        auto throttle = curve_fn(elapsed);
         slog::info << "Throttle: " << throttle << slog::endl;
 
         send_throttle_command((uint16_t)round(throttle));
@@ -81,121 +85,109 @@ void DroneController::run_fly_up_procedure()
         // This results in a dt of ~10ms
         std::this_thread::sleep_for(milliseconds(1));
     }
-
-    flight_mode = DroneFlightMode::HOVER_MODE;
 }
 
 void DroneController::run()
 {
-    try
+    while (flight_mode == DroneFlightMode::PENDING_INIT)
     {
-        while (flight_mode == DroneFlightMode::PENDING_INIT)
-        {
-            std::this_thread::sleep_for(milliseconds(10));
-        }
-
-        bool armed = false;
-        double throttle = 0;
-
-        auto t0 = high_resolution_clock::now();
-
-        // 1. Arm
-        //   a. Keep sending 0 throttle and disable arm
-        // 2. Hover up until y is good
-        // 3. Begin follow procedure
-
-        high_resolution_clock::time_point fly_up_begin;
-
-        while (true)
-        {
-            try
-            {
-                Msp::MspStatusEx* rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
-                if (rcv == NULL) continue;
-
-                auto arming_flags = rcv->arming_flags;
-
-                // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
-
-                // for (unsigned int i = 0; i < 22; i++)
-                // {
-                //     if (arming_flags & (1u << i))
-                //         slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
-                // }
-
-                if ((arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
-                    || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE))
-                {
-                    // If the drone loses RX and it's still armed then it will go into failsafe mode
-                    // To get out of failsafe, we need to reset the throttle and disable the arming switch
-                    // for 2 seconds before trying to do anything else
-
-                    flight_mode = DroneFlightMode::RECOVERY_MODE;
-                }
-                else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
-                {
-                    flight_mode = DroneFlightMode::FLY_UP_MODE;
-
-                    this->run_fly_up_procedure();
-                }
-
-                // --------------------------------------------
-
-                switch (flight_mode)
-                {
-                    case DroneFlightMode::RECOVERY_MODE:
-                    {
-                        armed = false;
-                        throttle = DISABLE_VALUE;
-                        break;
-                    }
-                    case DroneFlightMode::HOVER_MODE:
-                    {
-                        armed = true;
-                        throttle = DISABLE_VALUE + 350;
-                        break;
-                    }
-                }
-
-                DroneReceiver params = {
-                    .roll        = MIDDLE_VALUE,
-                    .pitch       = MIDDLE_VALUE,
-                    .throttle    = ((uint16_t)round(throttle)),
-                    .yaw         = MIDDLE_VALUE,
-                    .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
-                    .aux_2       = MIDDLE_VALUE,
-                    .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
-                };
-                Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
-
-                auto t1 = std::chrono::high_resolution_clock::now();
-                auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
-
-                //std::cout << "\nCommand time: " << time_diff << std::endl;
-
-                t0 = t1;
-
-                std::this_thread::sleep_for(milliseconds(LOOP_SLEEP_TIME));
-            }
-            catch (const std::exception& error)
-            {
-                slog::err << error.what() << slog::endl;
-            }
-            catch (...)
-            {
-                slog::err << "Unknown/internal exception happened." << slog::endl;
-            }
-        }
+        std::this_thread::sleep_for(milliseconds(10));
     }
-    catch (const std::exception& error)
+
+    bool armed = false;
+    double throttle = 0;
+
+    auto t0 = high_resolution_clock::now();
+
+    // 1. Arm
+    //   a. Keep sending 0 throttle and disable arm
+    // 2. Hover up until y is good
+    // 3. Begin follow procedure
+
+    high_resolution_clock::time_point fly_up_begin;
+
+    while (true)
     {
-        slog::err << error.what() << slog::endl;
-        return;
-    }
-    catch (...)
-    {
-        slog::err << "Unknown/internal exception happened." << slog::endl;
-        return;
+        try
+        {
+            auto rcv = Msp::receive_parameters<Msp::MspStatusEx>(serial.get(), Msp::MspCommand::STATUS_EX);
+            if (rcv == NULL) continue;
+
+            auto arming_flags = rcv->arming_flags;
+
+            // printf("\nflight_mode_flags: %u, average_system_load_percent: %u, arming_flags: %u \n", rcv->initial_flight_mode_flags, rcv->average_system_load_percent, rcv->arming_flags);
+
+            // for (unsigned int i = 0; i < 22; i++)
+            // {
+            //     if (arming_flags & (1u << i))
+            //         slog::info << " " << (i + 1) << ": " << ((arming_flags & (1u << i)) == (1u << i));
+            // }
+
+            if ((arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_RX_FAILSAFE)
+                || (arming_flags & Msp::MspArmingDisableFlags::ARMING_DISABLED_FAILSAFE))
+            {
+                // If the drone loses RX and it's still armed then it will go into failsafe mode
+                // To get out of failsafe, we need to reset the throttle and disable the arming switch
+                // for 2 seconds before trying to do anything else
+
+                flight_mode = DroneFlightMode::RECOVERY_MODE;
+            }
+            else if (flight_mode == DroneFlightMode::RECOVERY_MODE)
+            {
+                flight_mode = DroneFlightMode::FLY_UP_MODE;
+
+                this->run_fly_up_procedure();
+
+                // The fly up procedure holds onto execution until we find a vehicle to follow
+                flight_mode = DroneFlightMode::HOVER_MODE;
+            }
+
+            // --------------------------------------------
+
+            switch (flight_mode)
+            {
+                case DroneFlightMode::RECOVERY_MODE:
+                {
+                    armed = false;
+                    throttle = DISABLE_VALUE;
+                    break;
+                }
+                case DroneFlightMode::HOVER_MODE:
+                {
+                    armed = true;
+                    throttle = DISABLE_VALUE + 350;
+                    break;
+                }
+            }
+
+            DroneReceiver params = {
+                .roll        = MIDDLE_VALUE,
+                .pitch       = MIDDLE_VALUE,
+                .throttle    = ((uint16_t)round(throttle)),
+                .yaw         = MIDDLE_VALUE,
+                .flight_mode = DISABLE_VALUE, // DISABLE = Horizon mode
+                .aux_2       = MIDDLE_VALUE,
+                .arm_mode    = armed ? ENABLE_VALUE : DISABLE_VALUE
+            };
+            Msp::send_command<DroneReceiver>(serial.get(), Msp::MspCommand::SET_RAW_RC, &params);
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto time_diff = std::chrono::duration_cast<ms>(t1 - t0).count();
+
+            //std::cout << "\nCommand time: " << time_diff << std::endl;
+
+            t0 = t1;
+
+            std::this_thread::sleep_for(milliseconds(LOOP_SLEEP_TIME));
+        }
+        catch (const std::exception& error)
+        {
+            slog::err << error.what() << slog::endl;
+        }
+        catch (...)
+        {
+            slog::err << "Unknown/internal exception happened." << slog::endl;
+        }
     }
 }
 
@@ -222,14 +214,8 @@ void DroneController::update_pid(double dt, double actual_x, double actual_y, fl
 
     if (has_detection && (flight_mode & (DroneFlightMode::HOVER_MODE | DroneFlightMode::FOLLOW_MODE)))
     {
-        // TODO: Wait a couple seconds first
-
         dy = (float)pid_y.calculate(dt, cam_height / 2.0, actual_y);
-
-        if (flight_mode & DroneFlightMode::FOLLOW_MODE)
-        {
-            dx = (float)pid_x.calculate(dt, cam_width / 2.0, actual_x);
-        }
+        dx = (float)pid_x.calculate(dt, cam_width / 2.0, actual_x);
     }
 
     std::cout << "Adj: " << cv::Point2f(dx, dy) << std::endl;

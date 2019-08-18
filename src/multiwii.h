@@ -16,11 +16,11 @@ namespace Msp
 enum MspCommand : uint8_t
 {
     // Out messages
-    API_VERSION          =  1,
-    FC_VARIANT           =  2,
-    FC_VERSION           =  3,
-    BOARD_INFO           =  4,
-    BUILD_INFO           =  5,
+    API_VERSION          = 1,
+    FC_VARIANT           = 2,
+    FC_VERSION           = 3,
+    BOARD_INFO           = 4,
+    BUILD_INFO           = 5,
     CALIBRATION_DATA     = 14,
     FEATURE              = 36,
     BOARD_ALIGNMENT      = 38,
@@ -91,31 +91,43 @@ enum MspCommand : uint8_t
     SET_GPS_RESCUE_PIDS     = 226     //in message          GPS Rescues's throttleP and velocity PIDS + yaw P
 };
 
+#define MspArmingDisableFlags_Macro \
+    X(ARMING_DISABLED_NO_GYRO,         0) \
+    X(ARMING_DISABLED_FAILSAFE,        1) \
+    X(ARMING_DISABLED_RX_FAILSAFE,     2) \
+    X(ARMING_DISABLED_BAD_RX_RECOVERY, 3) \
+    X(ARMING_DISABLED_BOXFAILSAFE,     4) \
+    X(ARMING_DISABLED_RUNAWAY_TAKEOFF, 5) \
+    X(ARMING_DISABLED_CRASH_DETECTED,  6) \
+    X(ARMING_DISABLED_THROTTLE,        7) \
+    X(ARMING_DISABLED_ANGLE,           8) \
+    X(ARMING_DISABLED_BOOT_GRACE_TIME, 9) \
+    X(ARMING_DISABLED_NOPREARM,        10) \
+    X(ARMING_DISABLED_LOAD,            11) \
+    X(ARMING_DISABLED_CALIBRATING,     12) \
+    X(ARMING_DISABLED_CLI,             13) \
+    X(ARMING_DISABLED_CMS_MENU,        14) \
+    X(ARMING_DISABLED_BST,             15) \
+    X(ARMING_DISABLED_MSP,             16) \
+    X(ARMING_DISABLED_PARALYZE,        17) \
+    X(ARMING_DISABLED_GPS,             18) \
+    X(ARMING_DISABLED_RESC,            19) \
+    X(ARMING_DISABLED_RPMFILTER,       20) \
+    X(ARMING_DISABLED_ARM_SWITCH,      21)
+
+#define X(flag, value) flag = (1 << value),
 enum MspArmingDisableFlags : uint32_t
 {
-    ARMING_DISABLED_NO_GYRO         = (1 << 0),
-    ARMING_DISABLED_FAILSAFE        = (1 << 1),
-    ARMING_DISABLED_RX_FAILSAFE     = (1 << 2),
-    ARMING_DISABLED_BAD_RX_RECOVERY = (1 << 3),
-    ARMING_DISABLED_BOXFAILSAFE     = (1 << 4),
-    ARMING_DISABLED_RUNAWAY_TAKEOFF = (1 << 5),
-    ARMING_DISABLED_CRASH_DETECTED  = (1 << 6),
-    ARMING_DISABLED_THROTTLE        = (1 << 7),
-    ARMING_DISABLED_ANGLE           = (1 << 8),
-    ARMING_DISABLED_BOOT_GRACE_TIME = (1 << 9),
-    ARMING_DISABLED_NOPREARM        = (1 << 10),
-    ARMING_DISABLED_LOAD            = (1 << 11),
-    ARMING_DISABLED_CALIBRATING     = (1 << 12),
-    ARMING_DISABLED_CLI             = (1 << 13),
-    ARMING_DISABLED_CMS_MENU        = (1 << 14),
-    ARMING_DISABLED_BST             = (1 << 15),
-    ARMING_DISABLED_MSP             = (1 << 16),
-    ARMING_DISABLED_PARALYZE        = (1 << 17),
-    ARMING_DISABLED_GPS             = (1 << 18),
-    ARMING_DISABLED_RESC            = (1 << 19),
-    ARMING_DISABLED_RPMFILTER       = (1 << 20),
-    ARMING_DISABLED_ARM_SWITCH      = (1 << 21)
+    MspArmingDisableFlags_Macro
 };
+#undef X
+
+#define X(flag, value) #flag,
+static char const* MspArmingDisableFlags_Name[] =
+{
+    MspArmingDisableFlags_Macro
+};
+#undef X
 
 enum MspFlightModeFlags : uint32_t
 {
@@ -154,216 +166,216 @@ T* receive_parameters(ceSerial* serial, MspCommand command)
 #pragma pack(push, 1)
 struct MspApiVersion
 {
-  uint8_t protocol_version;
-  uint8_t api_major;
-  uint8_t api_minor;
+    uint8_t protocol_version;
+    uint8_t api_major;
+    uint8_t api_minor;
 };
 
 struct MspFcVariant
 {
-  char flight_control_identifier[4];
+    char flight_control_identifier[4];
 };
 
 struct MspFcVersion
 {
-  uint8_t version_major;
-  uint8_t version_minor;
-  uint8_t version_patch_level;
+    uint8_t version_major;
+    uint8_t version_minor;
+    uint8_t version_patch_level;
 };
 
 struct MspBoardInfo
 {
-  char     board_identifier[4];
-  uint16_t hardware_revision;
+    char     board_identifier[4];
+    uint16_t hardware_revision;
 };
 
 struct MspBuildInfo
 {
-  char build_date[11];
-  char build_time[8];
-  char short_git_revision[7];
+    char build_date[11];
+    char build_time[8];
+    char short_git_revision[7];
 };
 
 struct MspFailsafeConfig
 {
-  uint8_t  failsafe_delay;
-  uint8_t  failsafe_off_delay;
-  uint16_t failsafe_throttle;
-  uint8_t  failsafe_switch_mode;
-  uint16_t failsafe_throttle_low_delay;
-  uint8_t  failsafe_procedure;
+    uint8_t  failsafe_delay;
+    uint8_t  failsafe_off_delay;
+    uint16_t failsafe_throttle;
+    uint8_t  failsafe_switch_mode;
+    uint16_t failsafe_throttle_low_delay;
+    uint8_t  failsafe_procedure;
 };
 
 struct MspImu
 {
-  int16_t accel_x;
-  int16_t accel_y;
-  int16_t accel_z;
+    int16_t accel_x;
+    int16_t accel_y;
+    int16_t accel_z;
 
-  int16_t gyro_x;
-  int16_t gyro_y;
-  int16_t gyro_z;
+    int16_t gyro_x;
+    int16_t gyro_y;
+    int16_t gyro_z;
 
-  int16_t mag_x;
-  int16_t mag_y;
-  int16_t mag_z;
+    int16_t mag_x;
+    int16_t mag_y;
+    int16_t mag_z;
 };
 
 struct MspStatusEx
 {
-  uint16_t cycle_time;
-  uint16_t i2c_error_counter;
-  uint16_t sensor;
-  uint32_t initial_flight_mode_flags;
-  uint8_t  current_pid_profile_index;
-  uint16_t average_system_load_percent;
-  uint8_t  pid_profile_count;
-  uint8_t  current_control_rate_profile_index;
-  uint8_t  additional_flight_mode_flags_count;
-  // uint32_t additional_flight_mode_flags; // Only here when flight mode flags count > 0
-  uint8_t  arming_flags_count;
-  uint32_t arming_flags;
+    uint16_t cycle_time;
+    uint16_t i2c_error_counter;
+    uint16_t sensor;
+    uint32_t initial_flight_mode_flags;
+    uint8_t  current_pid_profile_index;
+    uint16_t average_system_load_percent;
+    uint8_t  pid_profile_count;
+    uint8_t  current_control_rate_profile_index;
+    uint8_t  additional_flight_mode_flags_count;
+    // uint32_t additional_flight_mode_flags; // Only here when flight mode flags count > 0
+    uint8_t  arming_flags_count;
+    uint32_t arming_flags;
 };
 
 struct MspStatus
 {
-  uint16_t cycle_time;
-  uint16_t i2c_error_counter;
-  uint16_t sensor;
-  uint32_t flight_mode_flags;
-  uint8_t  config_profile_index;
+    uint16_t cycle_time;
+    uint16_t i2c_error_counter;
+    uint16_t sensor;
+    uint32_t flight_mode_flags;
+    uint8_t  config_profile_index;
 };
 
 struct MspSensorStatus
 {
-  uint8_t is_hardware_healthy;
-  uint8_t hw_gyro_status;
-  uint8_t hw_accelerometer_status;
-  uint8_t hw_compass_status;
-  uint8_t hw_barometer_status;
-  uint8_t hw_GPS_status;
-  uint8_t hw_rangefinder_status;
-  uint8_t hw_pitotmeter_status;
-  uint8_t hw_optical_flow_status;
+    uint8_t is_hardware_healthy;
+    uint8_t hw_gyro_status;
+    uint8_t hw_accelerometer_status;
+    uint8_t hw_compass_status;
+    uint8_t hw_barometer_status;
+    uint8_t hw_GPS_status;
+    uint8_t hw_rangefinder_status;
+    uint8_t hw_pitotmeter_status;
+    uint8_t hw_optical_flow_status;
 };
 
 #define MSP_MAX_SUPPORTED_SERVOS 8
 
 struct MspServo
 {
-  uint16_t value[MSP_MAX_SUPPORTED_SERVOS];
+    uint16_t value[MSP_MAX_SUPPORTED_SERVOS];
 };
 
 struct MspServoConfiguration
 {
-  uint16_t min;
-  uint16_t max;
-  uint16_t middle;
-  uint8_t  rate;
-  uint8_t  angle_at_min;
-  uint8_t  angle_at_max;
-  uint8_t  forward_from_channel;
-  uint32_t reversed_sources;
+    uint16_t min;
+    uint16_t max;
+    uint16_t middle;
+    uint8_t  rate;
+    uint8_t  angle_at_min;
+    uint8_t  angle_at_max;
+    uint8_t  forward_from_channel;
+    uint32_t reversed_sources;
 };
 
 struct MspServoConfigurations
 {
-  MspServoConfiguration config[MSP_MAX_SUPPORTED_SERVOS];
+    MspServoConfiguration config[MSP_MAX_SUPPORTED_SERVOS];
 };
 
 #define MSP_MAX_SERVO_RULES (2 * MSP_MAX_SUPPORTED_SERVOS)
 
 struct MspServoMixRule
 {
-  uint8_t target_channel;
-  uint8_t input_source;
-  uint8_t rate;
-  uint8_t speed;
-  uint8_t min;
-  uint8_t max;
+    uint8_t target_channel;
+    uint8_t input_source;
+    uint8_t rate;
+    uint8_t speed;
+    uint8_t min;
+    uint8_t max;
 };
 
 struct MspServoMixRules
 {
-  MspServoMixRule mix_rule[MSP_MAX_SERVO_RULES];
+    MspServoMixRule mix_rule[MSP_MAX_SERVO_RULES];
 };
 
 #define MSP_MAX_SUPPORTED_MOTORS 8
 
 struct MspMotor
 {
-  uint16_t motor[MSP_MAX_SUPPORTED_MOTORS];
+    uint16_t motor[MSP_MAX_SUPPORTED_MOTORS];
 };
 
 #define MSP_MAX_SUPPORTED_CHANNELS 18
 
 struct MspReceiver
 {
-  uint16_t roll;
-  uint16_t pitch;
-  uint16_t throttle;
-  uint16_t yaw;
+    uint16_t roll;
+    uint16_t pitch;
+    uint16_t throttle;
+    uint16_t yaw;
 
-  uint16_t aux_1;
-  uint16_t aux_2;
-  uint16_t aux_3;
-  uint16_t aux_4;
-  uint16_t aux_5;
-  uint16_t aux_6;
-  uint16_t aux_7;
-  uint16_t aux_8;
-  uint16_t aux_9;
-  uint16_t aux_10;
-  uint16_t aux_11;
-  uint16_t aux_12;
-  uint16_t aux_13;
-  uint16_t aux_14;
+    uint16_t aux_1;
+    uint16_t aux_2;
+    uint16_t aux_3;
+    uint16_t aux_4;
+    uint16_t aux_5;
+    uint16_t aux_6;
+    uint16_t aux_7;
+    uint16_t aux_8;
+    uint16_t aux_9;
+    uint16_t aux_10;
+    uint16_t aux_11;
+    uint16_t aux_12;
+    uint16_t aux_13;
+    uint16_t aux_14;
 };
 
 union MspRc
 {
-  uint16_t value[MSP_MAX_SUPPORTED_CHANNELS];
-  MspReceiver receiver;
+    uint16_t value[MSP_MAX_SUPPORTED_CHANNELS];
+    MspReceiver receiver;
 };
 
 struct MspAttitude
 {
-  int16_t roll;
-  int16_t pitch;
-  int16_t yaw;
+    int16_t roll;
+    int16_t pitch;
+    int16_t yaw;
 };
 
 struct MspAltitude
 {
-  int32_t estimated_altitude;  // cm
-  int16_t estimated_velocity;  // cm/s
-  int32_t baro_latest_altitude;
+    int32_t estimated_altitude;  // cm
+    int16_t estimated_velocity;  // cm/s
+    int32_t baro_latest_altitude;
 };
 
 struct MspAnalog
 {
-  uint8_t  vbat;
-  uint16_t int_power_meter_sum;
-  uint16_t rssi;
-  uint16_t amperage;
+    uint8_t  vbat;
+    uint16_t int_power_meter_sum;
+    uint16_t rssi;
+    uint16_t amperage;
 };
 
 struct MspRcTuning
 {
-  uint8_t rate;
-  uint8_t expo;
-  uint8_t roll_pitch_rate;
-  uint8_t yaw_rate;
-  uint8_t dyn_thr_pid;
-  uint8_t throttle_mid;
-  uint8_t throttle_expo;
+    uint8_t rate;
+    uint8_t expo;
+    uint8_t roll_pitch_rate;
+    uint8_t yaw_rate;
+    uint8_t dyn_thr_pid;
+    uint8_t throttle_mid;
+    uint8_t throttle_expo;
 };
 
 struct MspBoardAlignment
 {
-  int16_t roll_deci_degrees;
-  int16_t pitch_deci_degrees;
-  int16_t yaw_deci_degrees;
+    int16_t roll_deci_degrees;
+    int16_t pitch_deci_degrees;
+    int16_t yaw_deci_degrees;
 };
 #pragma pack(pop)
 

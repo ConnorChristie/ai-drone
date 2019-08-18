@@ -109,6 +109,7 @@ endif()
 file (GLOB MAIN_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
      )
 
 file (GLOB MAIN_HEADERS

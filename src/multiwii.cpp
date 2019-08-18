@@ -161,6 +161,9 @@ char* send_raw_command(ceSerial* serial, MspCommand command, char* param_data, u
         return NULL;
     }
 
+    free(result);
+    delete[] rcv_data;
+
     return rcv_params;
 }
 

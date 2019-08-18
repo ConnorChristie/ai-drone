@@ -6,11 +6,11 @@
 
 2. Run the initial CMake command
 
-        docker run -v D:\Git\drone-c++:/root/build armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE=/root/arm-openvino.toolchain.cmake -BbuildArm -H.
+        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE=/root/arm-openvino.toolchain.cmake -BbuildArm -H.
 
 3. Build the project
 
-        docker run -v D:\Git\drone-c++:/root/build armv7_openvino make -j7 -C buildArm
+        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino make -j7 -C buildArm
 
 ## Running on Raspberry PI
 
@@ -44,4 +44,4 @@ This is helpful for debugging since you can run the project from right within Vi
 
 3. Run the command:
 
-        drone.exe -m "models\Transportation\object_detection\vehicle\mobilenet-reduced-ssd\dldt\FP16\vehicle-detection-adas-0002.xml" -ma "models\Security\object_attributes\vehicle\resnet10_update_1\dldt\FP16\vehicle-attributes-recognition-barrier-0039.xml" -d MYRIAD -msp_port_name COM3 -i vids\car_480p.mp4
+        drone.exe -m "..\models\Transportation\object_detection\vehicle\mobilenet-reduced-ssd\dldt\FP16\vehicle-detection-adas-0002.xml" -ma "..\models\Security\object_attributes\vehicle\resnet10_update_1\dldt\FP16\vehicle-attributes-recognition-barrier-0039.xml" -d MYRIAD -msp_port_name COM3 -i ..\vids\car_480p.mp4
