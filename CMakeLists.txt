@@ -84,6 +84,7 @@ set (HAVE_INTTYPES_H 1)
 
 add_subdirectory(src/thirdparty/gflags)
 add_subdirectory(src/thirdparty/ceSerial)
+add_subdirectory(src/thirdparty/websocketpp)
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
@@ -91,9 +92,20 @@ endif()
 
 include_directories (
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/websocketpp
 )
 
 find_package(InferenceEngine 2.0 REQUIRED)
+
+set(Boost_DEBUG 1)
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_RUNTIME ON)
+set(Boost_USE_MULTITHREADED ON)
+
+find_package(Boost REQUIRED COMPONENTS atomic thread system)
+
+include_directories (${Boost_INCLUDE_DIRS})
+link_directories (${Boost_LIBRARY_DIRS})
 
 if (UNIX)
     set (LIB_DL dl)
@@ -142,7 +154,7 @@ set_target_properties(
     COMPILE_PDB_NAME ${TARGET_NAME}
 )
 
-target_link_libraries(${TARGET_NAME} IE::ie_cpu_extension ${InferenceEngine_LIBRARIES} gflags ceSerial ${OpenCV_LIBRARIES})
+target_link_libraries(${TARGET_NAME} IE::ie_cpu_extension ${InferenceEngine_LIBRARIES} gflags ceSerial ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
 
 if(UNIX)
     target_link_libraries( ${TARGET_NAME} ${LIB_DL} pthread)

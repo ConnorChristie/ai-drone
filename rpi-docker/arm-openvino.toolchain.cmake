@@ -18,8 +18,11 @@ set(CC_RPI_LIBS /usr/lib/arm-linux-gnueabihf)
 SET(CMAKE_C_COMPILER   ${CC_RPI_GCC})
 SET(CMAKE_CXX_COMPILER ${CC_RPI_GXX})
 
+SET(BOOST_ROOT /root/boost_1_70_0)
+set(Boost_ARCHITECTURE "-a32")
+
 # where is the target environment
-SET(CMAKE_FIND_ROOT_PATH /opt/intel/openvino/inference_engine/share /opt/intel/openvino/inference_engine /opt/intel/openvino/opencv /root/boost_1_59_0/stage)
+SET(CMAKE_FIND_ROOT_PATH /opt/intel/openvino/inference_engine/share /opt/intel/openvino/inference_engine /opt/intel/openvino/opencv ${BOOST_ROOT}/stage)
 
 # search for programs in the build host directories
 SET(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

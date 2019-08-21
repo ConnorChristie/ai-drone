@@ -6,7 +6,7 @@
 
 2. Run the initial CMake command
 
-        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE=/root/arm-openvino.toolchain.cmake -BbuildArm -H.
+        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE="/root/arm-openvino.toolchain.cmake" -B buildArm -S . -DBoost_ARCHITECTURE=-a32
 
 3. Build the project
 
@@ -22,7 +22,7 @@
 
 4. Navigate to the directory that contains the binary and run the following command:
 
-        LD_LIBRARY_PATH=lib ./drone \
+        LD_LIBRARY_PATH=lib:/home/pi/qeum-test/bin/armv7l/Release/lib:/home/pi/qeum-test/opencv-4.1.0/lib ./drone \
         -m models/Transportation/object_detection/vehicle/mobilenet-reduced-ssd/dldt/FP16/vehicle-detection-adas-0002.xml \
         -ma models/Security/object_attributes/vehicle/resnet10_update_1/dldt/FP16/vehicle-attributes-recognition-barrier-0039.xml \
         -d MYRIAD \
