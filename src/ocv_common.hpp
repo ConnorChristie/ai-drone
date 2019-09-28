@@ -1,13 +1,5 @@
-// Copyright (C) 2018-2019 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-//
-
-/**
- * @brief a header file with common samples functionality using OpenCV
- * @file ocv_common.hpp
- */
-
-#pragma once
+#ifndef OCV_COMMON_HPP
+#define OCV_COMMON_HPP
 
 #include "common.hpp"
 #include <opencv2/opencv.hpp>
@@ -72,3 +64,5 @@ static UNUSED InferenceEngine::Blob::Ptr wrapMat2Blob(const cv::Mat &mat) {
 
     return InferenceEngine::make_shared_blob<uint8_t>(tDesc, mat.data);
 }
+
+#endif // OCV_COMMON_HPP

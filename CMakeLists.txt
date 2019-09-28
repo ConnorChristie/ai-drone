@@ -52,7 +52,7 @@ if (WIN32)
 
     set_property (DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_SCL_SECURE_NO_WARNINGS -DNOMINMAX")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc") #no asynchronous structured exception handling
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /bigobj") #no asynchronous structured exception handling
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LARGEADDRESSAWARE")
     if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4251 /wd4275 /wd4267") #disable some warnings
@@ -95,37 +95,18 @@ include_directories (
     ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/websocketpp
 )
 
-find_package(InferenceEngine 2.0 REQUIRED)
-
-set(Boost_DEBUG 1)
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_STATIC_RUNTIME ON)
-set(Boost_USE_MULTITHREADED ON)
-
-find_package(Boost REQUIRED COMPONENTS atomic thread system)
-
-include_directories (${Boost_INCLUDE_DIRS})
-link_directories (${Boost_LIBRARY_DIRS})
-
 if (UNIX)
     set (LIB_DL dl)
 endif()
 
-# Find OpenCV components if exist
-find_package(OpenCV COMPONENTS highgui QUIET)
-if(NOT(OpenCV_FOUND))
-    message(WARNING "OPENCV is disabled or not found, " ${TARGET_NAME} " skipped")
-    return()
-endif()
-
 file (GLOB MAIN_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
      )
 
 file (GLOB MAIN_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
      )
 
 # Create named folders for the sources within the .vcproj
@@ -154,7 +135,39 @@ set_target_properties(
     COMPILE_PDB_NAME ${TARGET_NAME}
 )
 
-target_link_libraries(${TARGET_NAME} IE::ie_cpu_extension ${InferenceEngine_LIBRARIES} gflags ceSerial ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
+# Find RealSense2
+# find_library(RealSense2_LIBRARY realsense2 HINTS "C:\\Program Files (x86)\\Intel RealSense SDK 2.0\\lib\\x64")
+# include_directories(${TARGET_NAME} "C:\\Program Files (x86)\\Intel RealSense SDK 2.0\\include")
+# target_link_libraries(${TARGET_NAME} ${RealSense2_LIBRARY})
+
+# Find OpenCV components if exist
+find_package(OpenCV COMPONENTS highgui QUIET)
+if(NOT(OpenCV_FOUND))
+    message(WARNING "OPENCV is disabled or not found, " ${TARGET_NAME} " skipped")
+    return()
+endif()
+target_link_libraries(${TARGET_NAME} ${OpenCV_LIBRARIES})
+
+# Find InferenceEngine
+find_package(InferenceEngine 2.0 REQUIRED)
+target_link_libraries(${TARGET_NAME} ${InferenceEngine_LIBRARIES})
+
+# Find Boost
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_RUNTIME ON)
+set(Boost_USE_MULTITHREADED ON)
+find_package(Boost REQUIRED COMPONENTS atomic thread system)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES})
+
+# Others
+target_link_libraries(${TARGET_NAME} gflags ceSerial)
+
+if (ENABLE_CPU_EXTENSION OR WIN32)
+    add_compile_definitions(HAS_CPU_EXTENSION)
+    target_link_libraries(${TARGET_NAME} IE::ie_cpu_extension)
+endif()
 
 if(UNIX)
     target_link_libraries( ${TARGET_NAME} ${LIB_DL} pthread)

@@ -11,9 +11,9 @@
 #include <unistd.h>
 #endif
 
+#include <opencv2/opencv.hpp>
 #include "multiwii.h"
 #include "pid.h"
-#include "utils.h"
 
 using namespace std::chrono;
 
@@ -28,8 +28,8 @@ enum DroneFlightMode : uint32_t
     FOLLOW_MODE   = (1 << 4)
 };
 
-constexpr uint LOOP_SLEEP_TIME = 2;
-constexpr uint HOVER_TIMEOUT   = 10000;
+constexpr uint16_t LOOP_SLEEP_TIME = 2;
+constexpr uint16_t HOVER_TIMEOUT   = 10000;
 
 constexpr uint16_t MIDDLE_VALUE  = 1500;
 constexpr uint16_t DISABLE_VALUE = MIDDLE_VALUE - 512;

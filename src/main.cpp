@@ -13,6 +13,7 @@
 #include <queue>
 #include <thread>
 #include <atomic>
+#include <regex>
 
 #ifndef _WIN32
 #include <signal.h>
@@ -21,15 +22,18 @@
 
 #include <inference_engine.hpp>
 #include <ie_iextension.h>
+
+#ifdef HAS_CPU_EXTENSION
 #include <ext_list.hpp>
+#endif
 
 #include "ocv_common.hpp"
 #include "slog.hpp"
 
 #include "drone.hpp"
 #include "timer.hpp"
+#include "utils.hpp"
 #include "multiwii.h"
-#include "utils.h"
 #include "pid.h"
 #include "drone_controller.h"
 
@@ -54,6 +58,10 @@ bool ParseAndCheckCommandLine(int argc, char *argv[])
 
     if (FLAGS_m.empty()) {
         throw std::logic_error("Parameter -m is not set");
+    }
+
+    if (FLAGS_ma.empty()) {
+        throw std::logic_error("Parameter -ma is not set");
     }
 
     if (FLAGS_msp_port_name.empty()) {
@@ -105,22 +113,65 @@ struct Detection
     float size;
 };
 
+cv::Mat capture_frame(cv::VideoCapture cap, const size_t width, const size_t height, bool* isLastFrame)
+{
+    cv::Mat temp_frame;
+
+    if (!cap.read(temp_frame))
+    {
+        if (temp_frame.empty())
+        {
+            *isLastFrame = true;  // end of video file
+        }
+        else
+        {
+            throw std::logic_error("Failed to get frame from cv::VideoCapture");
+        }
+    }
+
+    cv::Mat yuv(height, width, CV_8UC2, temp_frame.data);
+    cv::Mat rgb(height, width, CV_8UC3);
+
+    cv::cvtColor(yuv, rgb, cv::COLOR_YUV2BGRA_YUY2);
+    yuv.release();
+
+    return rgb;
+}
+
 void detection_runner(DroneController* drone_controller)
 {
+    const std::regex cam_regex("cam([0-9]+)");
+    std::smatch cam_match;
+
     try
     {
         slog::info << "InferenceEngine: " << GetInferenceEngineVersion() << slog::endl;
 
         cv::VideoCapture cap;
-        if (!((FLAGS_i == "cam") ? cap.open(0) : cap.open(FLAGS_i.c_str())))
+
+        if (std::regex_match(FLAGS_i, cam_match, cam_regex))
         {
-            throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
+            auto cam_index = stoi(cam_match[1].str());
+            cap.open(cam_index, cv::CAP_V4L2);
+
+            cap.set(cv::CAP_PROP_MODE, 3);
+        }
+        else
+        {
+            cap.open(FLAGS_i.c_str());
         }
 
         const size_t width = (size_t)cap.get(cv::CAP_PROP_FRAME_WIDTH);
         const size_t height = (size_t)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 
-        cv::Mat curr_frame;  cap >> curr_frame;
+        bool isLastFrame = false;
+        bool isAsyncMode = true;
+        bool isModeChanged = false;  // set to TRUE when execution mode is changed (SYNC<->ASYNC)
+
+        bool isTrackingCar = false;
+        int relativeIteration = -1;
+
+        cv::Mat curr_frame = capture_frame(cap, width, height, &isLastFrame);
         cv::Mat next_frame;
 
         if (!cap.grab())
@@ -135,6 +186,7 @@ void detection_runner(DroneController* drone_controller)
         slog::info << "Device info: " << slog::endl;
         std::cout << ie.GetVersions(FLAGS_d);
 
+        #ifdef HAS_CPU_EXTENSION
         /** Loading default extensions **/
         if (FLAGS_d.find("CPU") != std::string::npos)
         {
@@ -145,13 +197,14 @@ void detection_runner(DroneController* drone_controller)
             **/
             ie.AddExtension(std::make_shared<Extensions::Cpu::CpuExtensions>(), "CPU");
         }
-
         if (!FLAGS_l.empty())
         {
             // CPU(MKLDNN) extensions are loaded as a shared library and passed as a pointer to base extension
             IExtensionPtr extension_ptr = make_so_pointer<IExtension>(FLAGS_l.c_str());
             ie.AddExtension(extension_ptr, "CPU");
         }
+        #endif
+
         if (!FLAGS_c.empty())
         {
             // clDNN Extensions are loaded from an .xml description and OpenCL kernel files
@@ -260,13 +313,6 @@ void detection_runner(DroneController* drone_controller)
         // --------------------------- 6. Do inference ---------------------------------------------------------
         slog::info << "Start inference " << slog::endl;
 
-        bool isLastFrame = false;
-        bool isAsyncMode = true;
-        bool isModeChanged = false;  // set to TRUE when execution mode is changed (SYNC<->ASYNC)
-
-        bool isTrackingCar = false;
-        int relativeIteration = -1;
-
         typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
         auto total_t0 = std::chrono::high_resolution_clock::now();
         auto wallclock = std::chrono::high_resolution_clock::now();
@@ -279,20 +325,11 @@ void detection_runner(DroneController* drone_controller)
         while (true)
         {
             auto t0 = std::chrono::high_resolution_clock::now();
+
             // Here is the first asynchronous point:
             // in the async mode we capture frame to populate the NEXT infer request
             // in the regular mode we capture frame to the CURRENT infer request
-            if (!cap.read(next_frame))
-            {
-                if (next_frame.empty())
-                {
-                    isLastFrame = true;  // end of video file
-                }
-                else
-                {
-                    throw std::logic_error("Failed to get frame from cv::VideoCapture");
-                }
-            }
+            next_frame = capture_frame(cap, width, height, &isLastFrame);
 
             auto t1 = std::chrono::high_resolution_clock::now();
             ocv_decode_time = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -463,7 +500,7 @@ void detection_runner(DroneController* drone_controller)
                 }
             }
 
-            //cv::imshow("Detection results", curr_frame);
+            cv::imshow("Detection results", curr_frame);
             frame_queue.enqueue(curr_frame);
 
             t1 = std::chrono::high_resolution_clock::now();
@@ -481,6 +518,7 @@ void detection_runner(DroneController* drone_controller)
 
             // Final point:
             // in the truly Async mode we swap the NEXT and CURRENT requests for the next iteration
+            curr_frame.release();
             curr_frame = next_frame;
             next_frame = cv::Mat();
             if (isAsyncMode)

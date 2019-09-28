@@ -6,11 +6,13 @@
 
 2. Run the initial CMake command
 
-        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE="/root/arm-openvino.toolchain.cmake" -B buildArm -S . -DBoost_ARCHITECTURE=-a32
+        docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino cmake -DCMAKE_TOOLCHAIN_FILE="/root/arm-openvino.toolchain.cmake" -B buildArm -S .
 
 3. Build the project
 
         docker run -v D:\Git\ai-drone:/root/build --rm armv7_openvino make -j7 -C buildArm
+
+        docker run -v D:\Git\drone-c++:/root/build armv7_openvino make -j10 -C buildArm && scp -r ./buildArm/armv7l/Debug/ pi@rpi-3:/home/pi/drone/
 
 ## Running on Raspberry PI
 
@@ -22,12 +24,24 @@
 
 4. Navigate to the directory that contains the binary and run the following command:
 
+        LD_LIBRARY_PATH=Release/lib:opencv-4.1.1/lib/:inference_engine/lib/arm ./Release/drone -m ~/drone/models/Transportation/object_detection/vehicle/mobilenet-reduced-ssd/dldt/FP16/vehicle-detection-adas-0002.xml -i ~/drone/vids/fly_up_480p.mp4 -d MYRIAD -msp_port_name /dev/serial0 -ma ~/drone/models/Security/object_attributes/vehicle/resnet10_update_1/dldt/FP16/vehicle-attributes-recognition-barrier-0039.xml
+
+
+
         LD_LIBRARY_PATH=lib:/home/pi/qeum-test/bin/armv7l/Release/lib:/home/pi/qeum-test/opencv-4.1.0/lib ./drone \
         -m models/Transportation/object_detection/vehicle/mobilenet-reduced-ssd/dldt/FP16/vehicle-detection-adas-0002.xml \
         -ma models/Security/object_attributes/vehicle/resnet10_update_1/dldt/FP16/vehicle-attributes-recognition-barrier-0039.xml \
         -d MYRIAD \
         -msp_port_name /dev/serial0 \
         -i car_smaller.mp4
+
+
+        LD_LIBRARY_PATH=~/opencv/lib:~/inference-engine/bin/aarch64/Release/lib:lib ./drone \
+        -m ~/drone/models/Transportation/object_detection/vehicle/mobilenet-reduced-ssd/dldt/FP16/vehicle-detection-adas-0002.xml \
+        -ma ~/drone/models/Security/object_attributes/vehicle/resnet10_update_1/dldt/FP16/vehicle-attributes-recognition-barrier-0039.xml \
+        -d MYRIAD \
+        -msp_port_name /dev/serial0 \
+        -i ~/drone/vids/fly_up_480p.mp4
 
 ## Running on Windows
 
@@ -45,3 +59,15 @@ This is helpful for debugging since you can run the project from right within Vi
 3. Run the command:
 
         drone.exe -m "..\models\Transportation\object_detection\vehicle\mobilenet-reduced-ssd\dldt\FP16\vehicle-detection-adas-0002.xml" -ma "..\models\Security\object_attributes\vehicle\resnet10_update_1\dldt\FP16\vehicle-attributes-recognition-barrier-0039.xml" -d MYRIAD -msp_port_name COM3 -i ..\vids\car_480p.mp4
+
+
+
+## After building OpenCV and InferenceEngine
+
+```
+cd /root && mkdir bundle
+cp -r opencv/build/ bundle/ && mv bundle/build/ bundle/opencv
+cp -r dldt/inference-engine/ bundle/
+cd bundle && zip -r bundle opencv/ inference-engine/
+cp bundle.zip /root/build/from-dock/
+```
