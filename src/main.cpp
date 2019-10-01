@@ -113,13 +113,13 @@ struct Detection
     float size;
 };
 
-cv::Mat capture_frame(cv::VideoCapture cap, const size_t width, const size_t height, bool* isLastFrame)
+cv::Mat capture_frame(cv::VideoCapture cap, const size_t width, const size_t height, bool isYUV, bool* isLastFrame)
 {
-    cv::Mat temp_frame;
+    cv::Mat tempFrame;
 
-    if (!cap.read(temp_frame))
+    if (!cap.read(tempFrame))
     {
-        if (temp_frame.empty())
+        if (tempFrame.empty())
         {
             *isLastFrame = true;  // end of video file
         }
@@ -129,32 +129,38 @@ cv::Mat capture_frame(cv::VideoCapture cap, const size_t width, const size_t hei
         }
     }
 
-    cv::Mat yuv(height, width, CV_8UC2, temp_frame.data);
-    cv::Mat rgb(height, width, CV_8UC3);
+    if (isYUV)
+    {
+        cv::Mat yuv(height, width, CV_8UC2, tempFrame.data);
+        cv::Mat rgb(height, width, CV_8UC3);
 
-    cv::cvtColor(yuv, rgb, cv::COLOR_YUV2BGRA_YUY2);
-    yuv.release();
+        cv::cvtColor(yuv, rgb, cv::COLOR_YUV2BGRA_YUY2);
+        yuv.release();
 
-    return rgb;
+        return rgb;
+    }
+
+    return tempFrame;
 }
 
 void detection_runner(DroneController* drone_controller)
 {
-    const std::regex cam_regex("cam([0-9]+)");
-    std::smatch cam_match;
+    const std::regex camRegex("cam([0-9]+)");
+    std::smatch camMatch;
 
     try
     {
         slog::info << "InferenceEngine: " << GetInferenceEngineVersion() << slog::endl;
 
         cv::VideoCapture cap;
+        bool isYUV = false;
 
-        if (std::regex_match(FLAGS_i, cam_match, cam_regex))
+        if (std::regex_match(FLAGS_i, camMatch, camRegex))
         {
-            auto cam_index = stoi(cam_match[1].str());
+            auto cam_index = stoi(camMatch[1].str());
             cap.open(cam_index, cv::CAP_V4L2);
 
-            cap.set(cv::CAP_PROP_MODE, 3);
+            isYUV = true;
         }
         else
         {
@@ -171,7 +177,7 @@ void detection_runner(DroneController* drone_controller)
         bool isTrackingCar = false;
         int relativeIteration = -1;
 
-        cv::Mat curr_frame = capture_frame(cap, width, height, &isLastFrame);
+        cv::Mat curr_frame = capture_frame(cap, width, height, isYUV, &isLastFrame);
         cv::Mat next_frame;
 
         if (!cap.grab())
@@ -212,7 +218,8 @@ void detection_runner(DroneController* drone_controller)
         }
 
         /** Per layer metrics **/
-        if (FLAGS_pc) {
+        if (FLAGS_pc)
+        {
             ie.SetConfig({ { PluginConfigParams::KEY_PERF_COUNT, PluginConfigParams::YES } });
         }
 
@@ -329,7 +336,7 @@ void detection_runner(DroneController* drone_controller)
             // Here is the first asynchronous point:
             // in the async mode we capture frame to populate the NEXT infer request
             // in the regular mode we capture frame to the CURRENT infer request
-            next_frame = capture_frame(cap, width, height, &isLastFrame);
+            next_frame = capture_frame(cap, width, height, isYUV, &isLastFrame);
 
             auto t1 = std::chrono::high_resolution_clock::now();
             ocv_decode_time = std::chrono::duration_cast<ms>(t1 - t0).count();
@@ -440,7 +447,6 @@ void detection_runner(DroneController* drone_controller)
 
                 if (detections.size() == 0)
                 {
-                    // Lost track of the car
                     slog::warn << "No vehicles found this frame, did we lose track of it?" << slog::endl;
                 }
                 else
@@ -518,9 +524,11 @@ void detection_runner(DroneController* drone_controller)
 
             // Final point:
             // in the truly Async mode we swap the NEXT and CURRENT requests for the next iteration
-            curr_frame.release();
+            if (isYUV) curr_frame.release();
+
             curr_frame = next_frame;
             next_frame = cv::Mat();
+
             if (isAsyncMode)
             {
                 async_infer_request_curr.swap(async_infer_request_next);
