@@ -153,13 +153,21 @@ find_package(InferenceEngine 2.0 REQUIRED)
 target_link_libraries(${TARGET_NAME} ${InferenceEngine_LIBRARIES})
 
 # Find Boost
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_STATIC_RUNTIME ON)
-set(Boost_USE_MULTITHREADED ON)
+if(WIN32)
+    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_RUNTIME OFF)
+    set(Boost_USE_MULTITHREADED ON)
+else()
+    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_RUNTIME ON)
+    set(Boost_USE_MULTITHREADED ON)
+endif()
+
 find_package(Boost REQUIRED COMPONENTS atomic thread system)
+target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES})
+
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
-target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES})
 
 # Others
 target_link_libraries(${TARGET_NAME} gflags ceSerial)

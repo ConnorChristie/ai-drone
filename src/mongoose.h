@@ -238,6 +238,10 @@ typedef int bool;
 #define strdup _strdup
 #endif
 
+#if defined(_MSC_VER) && _MSC_VER < 1500 // VC++ 8.0 and below
+#define snprintf _snprintf
+#endif
+
 #ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
 #endif
@@ -249,7 +253,6 @@ typedef int bool;
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
-#define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define to64(x) _atoi64(x)
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
